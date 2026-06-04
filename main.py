@@ -1,90 +1,142 @@
-import tkinter as tk
 import json
+import threading
 import paho.mqtt.client as mqtt
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from collections import deque
+from datetime import datetime
 
-# --- KONFIGURATION ---
-MQTT_BROKER = "localhost"           # Da Mosquitto auf demselben Pi läuft
-MQTT_PORT = 1883
-MQTT_TOPIC = "zigbee2mqtt/dht22_sensor" # Passe 'dht22_sensor' an deinen Filenamen an
+# ─── Konfiguration ────────────────────────────────────────────────
+MQTT_BROKER   = "localhost"
+MQTT_PORT     = 1883
+MQTT_TOPIC    = "zigbee2mqtt/dht22_sensor"  # Namen in Zigbee2MQTT vergeben
+MAX_WERTE     = 60  # Anzahl sichtbarer Messpunkte im Diagramm
+# ──────────────────────────────────────────────────────────────────
 
-# --- HINTERGRUND-LOGIK (MQTT) ---
-def on_connect(client, userdata, flags, rc, properties=None):
-    """Wird aufgerufen, wenn die Verbindung zum Broker steht."""
+temperaturen  = deque(maxlen=MAX_WERTE)
+luftfeuchten  = deque(maxlen=MAX_WERTE)
+zeitstempel   = deque(maxlen=MAX_WERTE)
+lock          = threading.Lock()
+
+# ─── MQTT Callbacks ───────────────────────────────────────────────
+def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("Erfolgreich mit MQTT Broker verbunden!")
+        print(f"[MQTT] Verbunden mit Broker {MQTT_BROKER}")
         client.subscribe(MQTT_TOPIC)
+        print(f"[MQTT] Topic abonniert: {MQTT_TOPIC}")
     else:
-        print(f"Verbindungsfehler. Code: {rc}")
+        print(f"[MQTT] Verbindung fehlgeschlagen, Code: {rc}")
 
 def on_message(client, userdata, msg):
-    """Wird aufgerufen, wenn der ESP32 neue Daten über Zigbee/MQTT sendet."""
     try:
-        # Zigbee2MQTT sendet die Daten als JSON-String
-        payload = json.loads(msg.payload.decode())
-        
-        # Werte auslesen (Zigbee2MQTT rechnet die Werte automatisch wieder in Floats um)
-        temperatur = payload.get("temperature", "--.-")
-        luftfeuchtigkeit = payload.get("humidity", "--.-")
-        
-        # GUI-Anzeige im Hauptthread aktualisieren
-        lbl_temp.config(text=f"{temperatur} °C")
-        lbl_hum.config(text=f"{luftfeuchtigkeit} %")
-        
+        payload = json.loads(msg.payload.decode("utf-8"))
+
+        # Zigbee2MQTT liefert die Werte bereits umgerechnet (nicht × 100)
+        temp = payload.get("temperature")
+        hum  = payload.get("humidity")
+
+        if temp is None or hum is None:
+            print(f"[MQTT] Unvollständige Nachricht: {payload}")
+            return
+
+        jetzt = datetime.now().strftime("%H:%M:%S")
+
+        with lock:
+            temperaturen.append(float(temp))
+            luftfeuchten.append(float(hum))
+            zeitstempel.append(jetzt)
+
+        print(f"[{jetzt}] Temp: {temp:.1f} °C | Feuchte: {hum:.1f} %")
+
+    except json.JSONDecodeError:
+        print(f"[MQTT] Ungültiges JSON: {msg.payload}")
     except Exception as e:
-        print(f"Fehler beim Parsen der Daten: {e}")
+        print(f"[MQTT] Fehler beim Verarbeiten: {e}")
 
-# --- GUI-ERSTELLUNG (Tkinter) ---
-# Hauptfenster initialisieren
-root = tk.Tk()
-root.title("Smarthome Dashboard")
+# ─── MQTT-Client in eigenem Thread ────────────────────────────────
+def mqtt_thread():
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    try:
+        client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+        client.loop_forever()
+    except ConnectionRefusedError:
+        print("[MQTT] Broker nicht erreichbar – läuft Mosquitto?")
 
-# Fenstergröße an das Hamtysan-Display anpassen (1024x600)
-root.geometry("1024x600")
-root.configure(bg="#1e1e24") # Dunkler, moderner Hintergrund
+# ─── Visualisierung ───────────────────────────────────────────────
+def erstelle_diagramm():
+    fig, (ax_temp, ax_hum) = plt.subplots(2, 1, figsize=(12, 7))
+    fig.patch.set_facecolor("#1e1e2e")
+    fig.suptitle("Smarthome – DHT22 Live-Daten", color="white",
+                 fontsize=14, fontweight="bold")
 
-# Optional: Vollbildmodus aktivieren (beenden mit Alt+F4)
-# root.attributes('-fullscreen', True)
+    for ax in (ax_temp, ax_hum):
+        ax.set_facecolor("#2a2a3e")
+        ax.tick_params(colors="#aaaacc")
+        ax.spines[:].set_color("#44445a")
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.5)
 
-# Layout-Rahmen (Cards) für ein schickes Design
-frame_main = tk.Frame(root, bg="#1e1e24")
-frame_main.place(relx=0.5, rely=0.5, anchor="center")
+    def aktualisieren(frame):
+        with lock:
+            temps  = list(temperaturen)
+            hums   = list(luftfeuchten)
+            zeiten = list(zeitstempel)
 
-# --- TITEL ---
-lbl_title = tk.Label(frame_main, text="Klimadaten Sensor 1", font=("Helvetica", 28, "bold"), fg="#ffffff", bg="#1e1e24")
-lbl_title.grid(row=0, column=0, columnspan=2, pady=(0, 40))
+        if not temps:
+            return
 
-# --- TEMPERATUR CARD ---
-frame_temp = tk.Frame(frame_main, bg="#2a2a35", padx=30, pady=20, bd=2, relief="groove")
-frame_temp.grid(row=1, column=0, padx=20)
+        # Temperatur-Plot
+        ax_temp.cla()
+        ax_temp.set_facecolor("#2a2a3e")
+        ax_temp.plot(zeiten, temps, color="#f38ba8", linewidth=1.8,
+                     marker="o", markersize=3, label="Temperatur")
+        if temps:
+            ax_temp.fill_between(zeiten, temps,
+                                 min(temps) - 1, alpha=0.15, color="#f38ba8")
+        ax_temp.set_ylabel("°C", color="#f38ba8")
+        ax_temp.set_title("Temperatur", color="#cdd6f4", fontsize=11)
+        ax_temp.tick_params(colors="#aaaacc", labelsize=8)
+        ax_temp.spines[:].set_color("#44445a")
+        # Aktuellen Wert als Annotation
+        ax_temp.annotate(f"{temps[-1]:.1f} °C",
+                         xy=(zeiten[-1], temps[-1]),
+                         xytext=(5, 5), textcoords="offset points",
+                         color="#f38ba8", fontsize=9)
+        # X-Achse ausdünnen
+        step = max(1, len(zeiten) // 6)
+        ax_temp.set_xticks(range(0, len(zeiten), step))
+        ax_temp.set_xticklabels(zeiten[::step], rotation=30, ha="right")
 
-lbl_temp_title = tk.Label(frame_temp, text="TEMPERATUR", font=("Helvetica", 14, "bold"), fg="#ff5964", bg="#2a2a35")
-lbl_temp_title.pack()
+        # Luftfeuchte-Plot
+        ax_hum.cla()
+        ax_hum.set_facecolor("#2a2a3e")
+        ax_hum.plot(zeiten, hums, color="#89b4fa", linewidth=1.8,
+                    marker="s", markersize=3, label="Luftfeuchte")
+        if hums:
+            ax_hum.fill_between(zeiten, hums,
+                                min(hums) - 1, alpha=0.15, color="#89b4fa")
+        ax_hum.set_ylabel("%", color="#89b4fa")
+        ax_hum.set_title("Luftfeuchte", color="#cdd6f4", fontsize=11)
+        ax_hum.tick_params(colors="#aaaacc", labelsize=8)
+        ax_hum.spines[:].set_color("#44445a")
+        ax_hum.annotate(f"{hums[-1]:.1f} %",
+                        xy=(zeiten[-1], hums[-1]),
+                        xytext=(5, 5), textcoords="offset points",
+                        color="#89b4fa", fontsize=9)
+        step = max(1, len(zeiten) // 6)
+        ax_hum.set_xticks(range(0, len(zeiten), step))
+        ax_hum.set_xticklabels(zeiten[::step], rotation=30, ha="right")
 
-lbl_temp = tk.Label(frame_temp, text="--.- °C", font=("Helvetica", 48, "bold"), fg="#ffffff", bg="#2a2a35")
-lbl_temp.pack(pady=10)
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
 
-# --- LUFTFEUCHTIGKEIT CARD ---
-frame_hum = tk.Frame(frame_main, bg="#2a2a35", padx=30, pady=20, bd=2, relief="groove")
-frame_hum.grid(row=1, column=1, padx=20)
+    ani = animation.FuncAnimation(fig, aktualisieren,
+                                  interval=5000, cache_frame_data=False)
+    plt.show()
 
-lbl_hum_title = tk.Label(frame_hum, text="LUFTFEUCHTIGKEIT", font=("Helvetica", 14, "bold"), fg="#35a7ff", bg="#2a2a35")
-lbl_hum_title.pack()
-
-lbl_hum = tk.Label(frame_hum, text="--.- %", font=("Helvetica", 48, "bold"), fg="#ffffff", bg="#2a2a35")
-lbl_hum.pack(pady=10)
-
-# --- MQTT CLIENT STARTEN ---
-client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.on_connect = on_connect
-client.on_message = on_message
-
-try:
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_start() # Startet den MQTT-Empfang in einem eigenen Thread im Hintergrund
-except Exception as e:
-    print(f"MQTT Broker nicht erreichbar: {e}")
-    lbl_temp.config(text="No Connection")
-    lbl_hum.config(text="No Connection")
-
-# Start der GUI-Schleife (hält das Fenster offen)
-root.mainloop()
+# ─── Start ────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    t = threading.Thread(target=mqtt_thread, daemon=True)
+    t.start()
+    erstelle_diagramm()
