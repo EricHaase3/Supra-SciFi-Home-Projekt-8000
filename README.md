@@ -5,6 +5,9 @@ pw: sipi
 IP: 192.168.2.170
 
 
-Verbindung mit RPI über cmd
-1.  ssh sipi@192.168.2.170
-2.  rm -rf ~/.vscode-server     (zum löschen voll halb installierten Bilbiotheken)
+## In Windows CMD:
+ssh sipi@192.168.2.170                          Verbinden mit dem RPi
+cd ~/Supra-SciFi-Home-Projekt-8000              Navigieren in Projektordner
+git pull                                        Aktuellen Code Pullen
+python3 main.py                                 programm ausführen
+
