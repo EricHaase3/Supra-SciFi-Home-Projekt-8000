@@ -59,5 +59,14 @@ python3 stats.py
 - [x] ESP32-H2-Zero Firmware (DHT22 + Zigbee End Device)
 - [x] Zigbee2MQTT Pairing erfolgreich
 - [x] SQLite-Datenbankanbindung (`database.py` & `stats.py`)
-- [ ] Jahresrückblick & Auswertungs-Skripte (Diagramme / PDF-Export)
-- [ ] Zigbee OTA Firmware-Updates über RPi/Konsole
+- [x] Deep Sleep für extremen Batteriebetrieb implementiert (Sleepy End Device)
+
+### Hardware To-Dos (Vor dem finalen Verbauen)
+- [ ] **Power-LEDs entfernen:** Von allen ESP32-H2-Zero Boards die Power-LED abkratzen/auslöten, da sie den Akku entlädt (~2-5 mA permanent).
+- [ ] **Akkus wählen:** LiFePO4 Akku (3.2V) an den `3V3` Pin klemmen ODER Li-Ion (3.7V) an den `5V` Pin klemmen.
+- [ ] **DHT22 verkabeln:** Sensoren an den neuen Boards (Jana, Eric, Dings, Balkon) exakt wie das erste Board verlöten (GPIO 0).
+- [ ] Alle weiteren Sensoren flashen und in Zigbee2MQTT anlernen.
+
+### Ausblick (Was kommt als nächstes?)
+- **Jahresrückblick & Datenanalyse:** Ausbau von `stats.py` zu einem Script, das langfristige Auswertungen und Graphen aus der SQLite-Datenbank generiert (z.B. für Temperaturverläufe über Wochen/Monate).
+- **Batterie-Überwachung:** Den internen ADC (Analog-Digital-Wandler) des ESP32 auslesen und den echten Batteriestand (anstelle von fixen 100%) übertragen.

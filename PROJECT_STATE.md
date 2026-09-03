@@ -1,69 +1,39 @@
-# 🛰️ Supra-SciFi-Home-Projekt-8000: Central Project State & Knowledge Base
+# Projekt-Status: Supra-SciFi-Home-Projekt-8000
 
-> **Hinweis für KI-Modelle & Entwickler:** Diese Datei dient als Single Source of Truth (SSOT) für das gesamte Smart-Home- & Sensor-Projekt. Bitte bei jedem neuen Session-Start einlesen.
+## 1. Projekt-Übersicht
+Dieses Projekt realisiert ein Smart-Home-Umweltüberwachungssystem, basierend auf dem Zigbee-Standard. 
+Es verbindet moderne Mikrocontroller-Technologie (ESP32-H2) mit einem Raspberry Pi als zentrale Datensenke und Visualisierungs-Hub (Dashboard für ein 7-Zoll-Display).
 
----
-
-## 1. Systemübersicht & Architektur
-
-* **Zentraler Host:** Raspberry Pi 4 / 5 (Hostname: `sipi.local`, IP: `192.168.2.170`, OS: Raspberry Pi OS 64-Bit)
-  * **SSH Login:** `ssh sipi@sipi.local` (Passwort: `sipi`)
-  * **MQTT Broker:** Eclipse Mosquitto (Port: 1883, Topic: `zigbee2mqtt/#`)
-  * **Zigbee2MQTT (Z2M):** Web-Frontend auf `http://sipi.local:8080` (Service: `zigbee2mqtt.service`)
-  * **Zigbee Koordinator:** ITEAD Sonoff Zigbee 3.0 USB Dongle Plus (`/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_ccefff26e5a0ef11b0ab9da361ce3355-if00-port0`, IEEE: `0x00124b0038a8e603`, Channel: 11, PAN-ID: 6754)
-* **Dauerhafte Speicherung:** SQLite-Datenbank (`data/sensor_history.db`) mit indizierten Timestamps für Mehrjahresauswertungen.
-* **Live-Visualisierung:** Python Matplotlib Dashboard (`main.py`) im Vollbildmodus auf dem RPi-Bildschirm (`DISPLAY=:0`).
+**Ziel des Systems:** 
+Das System sammelt Temperatur- und Luftfeuchtigkeitsdaten von mehreren autarken, batteriebetriebenen Sensorknoten im Haus ("David", "Jana", "Eric", "Dings", "Balkon") und visualisiert diese nahezu in Echtzeit auf einem zentralen Dashboard. Die Daten werden außerdem dauerhaft archiviert, um langfristige klimatische Veränderungen (Jahresrückblicke) analysieren zu können.
 
 ---
 
-## 2. Hardware & Sensor-Knoten
+## 2. Aktueller Stand (03. September 2026)
 
-| Sensor-ID | Friendly Name (Z2M) | IEEE-Adresse | Controller | Messfühler | Pinout | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **01** | `Temp_Hum_01` | `0x1051dbfffe6837b6` | ESP32-H2-Zero (RISC-V) | DHT22 (AM2302) | Data -> GPIO 0, Reset -> GPIO 9 (BOOT) | Online & gepaired |
-| **02** | `Temp_Hum_02` | *Noch zu flashen* | ESP32-H2-Zero | DHT22 | Data -> GPIO 0 | Geplant |
-| **03** | `Temp_Hum_03` | *Noch zu flashen* | ESP32-H2-Zero | DHT22 | Data -> GPIO 0 | Geplant |
+### 2.1. Hardware & Sensoren (ESP32-H2-Zero + DHT22)
+* **Code-Status:** Der Code für die ESP32-Sensoren (`esp_dht22_sketch.ino`) ist fertiggestellt und auf **Sleepy End Device (Deep Sleep)** optimiert.
+* **Funktion:** Der Sensor liest die Daten vom DHT22, funkt sie via Zigbee (Endpoint 10, Temp & Feuchte Cluster kombiniert) an Zigbee2MQTT und schläft danach für 10 Minuten (`esp_deep_sleep_start`).
+* **Bibliotheken:** Nutzt die native `Zigbee.h` aus dem esp32-Board-Support-Package v3.3.x von Espressif.
 
----
-
-## 3. Firmware-Konfiguration (Arduino IDE für ESP32-H2)
-
-* **Board:** `ESP32H2 Dev Module`
-* **Flash Mode / Size:** `QIO 80MHz` / `4MB (32Mb)`
-* **Partition Scheme:** `Zigbee 4MB with spiffs`
-* **Zigbee Mode:** `Zigbee ED (End Device)` (**Wichtig!**)
-* **USB CDC On Boot:** `Enabled`
-* **Upload Mode:** `UART0 / Hardware CDC`
+### 2.2. Zentrale (Raspberry Pi)
+* **Infrastruktur:** Mosquitto (MQTT-Broker) und Zigbee2MQTT (Z2M) mit Sonoff Dongle Plus laufen stabil als Systemdienste.
+* **Datenbank:** Die SQLite-Datenbank (`database.py`) speichert zuverlässig und asynchron alle eintreffenden Messdaten mit Zeitstempel. Beim Neustart des Dashboards werden die zuletzt bekannten Werte automatisch aus der Datenbank geladen (`get_last_values`).
+* **Visualisierung:** Das Python-Skript (`main.py`) läuft mit Matplotlib und erzeugt ein responsives Dashboard. Das Layout und die Schriftgrößen wurden speziell für ein 7-Zoll Touch-Display optimiert, damit alle Werte (Temp & Feuchte) lesbar bleiben.
 
 ---
 
-## 4. Datenbank-Schema (`data/sensor_history.db`)
+## 3. Zukünftige Pläne & Weiterentwicklung
 
-Tabelle `measurements`:
-* `id` INTEGER PRIMARY KEY AUTOINCREMENT
-* `timestamp` DATETIME DEFAULT CURRENT_TIMESTAMP (UTC / Lokal ISO)
-* `sensor_name` TEXT (z. B. `Temp_Hum_01`)
-* `temperature` REAL (°C)
-* `humidity` REAL (% r.F.)
-* *Indizes:* `idx_sensor_time (sensor_name, timestamp)`
+### 3.1. Hardware-Modifikationen für Langzeit-Batteriebetrieb
+Der Code ist bereits auf Batteriebetrieb optimiert (Deep Sleep). Für echte Langzeitlaufzeiten (Monate/Jahre) stehen folgende physische Umbauten der restlichen Sensoren an:
+* **Entfernung der Power-LEDs:** Die LEDs auf den ESP32-H2-Zero Boards müssen abgelötet/entfernt werden, da sie sonst konstant ~2-5 mA verbrauchen.
+* **Akkus & LDOs:** Auswahl der finalen Akkus (Ideal: LiFePO4 direkt an 3.3V, um Wandlerverluste zu vermeiden).
+* **Optional:** Den `VCC`-Pin des DHT22 nicht dauerhaft an 3.3V hängen, sondern über einen GPIO-Pin nur für die Mess-Sekunde mit Strom versorgen.
 
----
+### 3.2. "Jahresrückblick" & Datenanalyse
+* **`stats.py`:** Ausbau des bisherigen Statistik-Skripts. Geplant ist eine Auswertung (z.B. als PDF oder als generierte Graphen), die Temperaturverläufe über Wochen und Monate darstellt.
+* **Datenbereinigung:** Bei monatelangem Sammeln im 10-Minuten-Takt entstehen große Datenmengen (ca. 50.000 Einträge pro Sensor pro Jahr). Ggf. muss später eine Logik integriert werden, die alte Daten verdichtet (z.B. nur noch Tages-Durchschnitte nach 3 Monaten).
 
-## 5. Wichtigste CLI-Befehle auf dem Raspberry Pi
-
-```bash
-# Projekt aktualisieren & Umgebung laden
-cd ~/Supra-SciFi-Home-Projekt-8000
-git pull
-source venv/bin/activate
-
-# 1. Live-Diagramm im Vollbild starten
-DISPLAY=:0 python3 main.py
-
-# 2. Statistik-Zusammenfassung in der Konsole anzeigen
-python3 stats.py
-
-# 3. Z2M Log & MQTT-Verkehr prüfen
-journalctl -u zigbee2mqtt -f
-mosquitto_sub -t "zigbee2mqtt/#" -v
-```
+### 3.3. Weitere Sensoren
+* Fertigstellung der Hardware für "Jana", "Eric", "Dings" und "Balkon" und Anlernen in Zigbee2MQTT unter Verwendung des aktuellen Deep-Sleep-Codes.
