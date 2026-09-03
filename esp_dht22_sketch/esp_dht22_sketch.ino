@@ -2,8 +2,9 @@
  * ESP32-H2 Zigbee & DHT22 Raumklima-Sensor (SciFi-Home)
  * 
  * Bibliothek: esp32 by Espressif Systems >= 3.3.x
- * Hardware:
- *   - ESP32-H2-Zero, DHT22 an GPIO 0, Reset-Button an GPIO 9
+ * Hardware: ESP32-H2-Zero, DHT22 an GPIO 0, Reset-Button an GPIO 9
+ * 
+ * WICHTIG: ZigbeeTempSensor enthält BEIDE Cluster (Temp + Feuchte) auf EP10!
  ******************************************************************************/
 
 #ifndef ZIGBEE_MODE_ED
@@ -13,7 +14,7 @@
 #include "DHT.h"
 #include "Zigbee.h"
 
-// ─── Pin- und Hardware-Definitionen ──────────────────────────────
+// ─── Konfiguration ────────────────────────────────────────────────
 #define DHTPIN        0
 #define DHTTYPE       DHT22
 #define BUTTON_PIN    9
@@ -21,10 +22,9 @@
 // Sende-Intervall (20 Sek. zum Testen, später 600000 = 10 Min)
 const unsigned long SENDE_INTERVALL = 20000;
 
-// ─── Zigbee-Endpunkte ────────────────────────────────────────────
+// ─── Zigbee-Endpunkt (EP10 enthält Temp UND Feuchte) ─────────────
 DHT dht(DHTPIN, DHTTYPE);
-ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10); // EP10: Temperatur
-ZigbeeHumidity   zbHumSensor  = ZigbeeHumidity(11);   // EP11: Luftfeuchte
+ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10);
 
 unsigned long letzteMessung = 0;
 
@@ -38,34 +38,28 @@ void setup() {
     Serial.println(F("[Zigbee] Factory-Reset wird durchgefuehrt..."));
   }
 
-  // 1. Temperatur-Sensor konfigurieren (EP10)
+  // 1. Sensor konfigurieren (EP10 = Temp + Feuchte Cluster)
   zbTempSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
   zbTempSensor.setMinMaxValue(-20.0, 60.0);
   zbTempSensor.setTolerance(0.1);
 
-  // 2. Feuchtigkeits-Sensor konfigurieren (EP11)
-  zbHumSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
-  zbHumSensor.setMinMaxValue(0.0, 100.0);
-  zbHumSensor.setTolerance(0.5);
-
-  // 3. Endpunkte registrieren
+  // 2. Endpunkt registrieren
   Zigbee.addEndpoint(&zbTempSensor);
-  Zigbee.addEndpoint(&zbHumSensor);
 
-  // 4. Zigbee starten
-  Serial.println(F("[Zigbee] Starte Zigbee End Device (Temp + Feuchte)..."));
+  // 3. Zigbee starten
+  Serial.println(F("[Zigbee] Starte Zigbee End Device (Temp + Feuchte auf EP10)..."));
   if (!Zigbee.begin(ZIGBEE_END_DEVICE, resetGedrueckt)) {
     Serial.println(F("[Zigbee] FEHLER: Neustart..."));
     delay(2000);
     ESP.restart();
   }
 
-  // 5. Startwerte setzen
+  // 4. Startwerte setzen
   delay(1500);
   float startTemp = dht.readTemperature();
   float startHum  = dht.readHumidity();
   if (!isnan(startTemp)) zbTempSensor.setTemperature(startTemp);
-  if (!isnan(startHum))  zbHumSensor.setHumidity(startHum);
+  if (!isnan(startHum))  zbTempSensor.setHumidity(startHum);
   Serial.printf("[Sensor] Startwerte: %.2f C | %.1f %%\n", startTemp, startHum);
   Serial.println(F("[Zigbee] Bereit!"));
 }
@@ -89,9 +83,8 @@ void loop() {
     if (Zigbee.connected()) {
       Serial.println(F("[Zigbee] VERBUNDEN - Sende Temp & Feuchte..."));
       zbTempSensor.setTemperature(temp);
+      zbTempSensor.setHumidity(hum);   // Feuchte auf DEMSELBEN Endpunkt!
       zbTempSensor.report();
-      zbHumSensor.setHumidity(hum);
-      zbHumSensor.report();
       Serial.println(F("[Zigbee] Temp & Feuchte gesendet!"));
     } else {
       Serial.println(F("[Zigbee] Suche Verbindung..."));
