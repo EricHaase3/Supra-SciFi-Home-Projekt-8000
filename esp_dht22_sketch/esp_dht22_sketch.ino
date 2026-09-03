@@ -25,7 +25,7 @@ const unsigned long SENDE_INTERVALL = 20000;
 // ─── Globale Objekte: Temperatur (EP 10) & Feuchte (EP 11) ───────
 DHT dht(DHTPIN, DHTTYPE);
 ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10);
-ZigbeeHumiditySensor zbHumSensor = ZigbeeHumiditySensor(11);
+ZigbeeHumidity   zbHumSensor  = ZigbeeHumidity(11);
 
 unsigned long letzteMessung = 0;
 
