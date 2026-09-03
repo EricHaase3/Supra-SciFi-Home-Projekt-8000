@@ -4,11 +4,7 @@
 - **Login:** `sipi` | **PW:** `sipi`
 - **IP:** `192.168.2.170` (bzw. `sipi.local`)
 - **Zigbee2MQTT Web-Frontend:** [`http://192.168.2.170:8080`](http://192.168.2.170:8080) *(oder `http://sipi.local:8080`)*
-
-### Wichtige RPi Systemdienste
-- **Mosquitto MQTT:** `sudo systemctl status mosquitto`
-- **Zigbee2MQTT:** `sudo systemctl status zigbee2mqtt`
-- **Logs einsehen:** `journalctl -u zigbee2mqtt -f`
+- **SQLite-Datenbank:** `data/sensor_history.db` *(speichert alle Messwerte automatisch)*
 
 ### In Windows CMD / SSH:
 ```bash
@@ -16,16 +12,28 @@ ssh sipi@sipi.local                             # Verbinden mit dem RPi
 cd ~/Supra-SciFi-Home-Projekt-8000              # Navigieren in Projektordner
 git pull                                        # Aktuellen Code pullen
 source venv/bin/activate                        # Venv aktivieren
-python3 main.py                                 # Programm ausführen
+
+# Live-Visualisierung + permanenter SQLite-Logger:
+DISPLAY=:0 python3 main.py
+
+# Statistik aller Sensoren in der Konsole anzeigen:
+python3 stats.py
 ```
+
+### Wichtige RPi Systemdienste
+- **Mosquitto MQTT:** `sudo systemctl status mosquitto`
+- **Zigbee2MQTT:** `sudo systemctl status zigbee2mqtt`
+- **Logs einsehen:** `journalctl -u zigbee2mqtt -f`
 
 ---
 
 ## ESP32-H2-Zero (Zigbee Sensor Node)
 
 ### Arduino IDE Einstellungen
-- **Board:** `ESP32H2 Dev Module` *(Wichtig: RISC-V H2, nicht Standard-ESP32!)*
+- **Board:** `ESP32H2 Dev Module` *(Wichtig: RISC-V H2)*
 - **Zigbee Mode:** `Zigbee ED (End Device)` *(Menü Werkzeuge / Tools)*
+- **Partition Scheme:** `Zigbee 4MB with spiffs` *(Wichtig für NVRAM)*
+- **USB CDC On Boot:** `Enabled` *(Für Serial Monitor Ausgabe)*
 - **Flash Size:** `4MB (32Mb)`
 
 ### Benötigte Bibliotheken
@@ -46,9 +54,10 @@ python3 main.py                                 # Programm ausführen
 
 ---
 
-## Offene Punkte & Roadmap
+## Roadmap & Status
 - [x] Raspberry Pi Basis-Setup (Mosquitto + Zigbee2MQTT + Sonoff Dongle Plus)
-- [ ] ESP32-H2-Zero flashen und in Zigbee2MQTT pairen
-- [ ] Daten von mehreren ESPs in `main.py` visualisieren
-- [ ] Datenbank zur persistenten Datenspeicherung (z. B. SQLite / InfluxDB)
-- [ ] Zigbee OTA Firmware-Updates über RPi/Konsole evaluieren
+- [x] ESP32-H2-Zero Firmware (DHT22 + Zigbee End Device)
+- [x] Zigbee2MQTT Pairing erfolgreich
+- [x] SQLite-Datenbankanbindung (`database.py` & `stats.py`)
+- [ ] Jahresrückblick & Auswertungs-Skripte (Diagramme / PDF-Export)
+- [ ] Zigbee OTA Firmware-Updates über RPi/Konsole
