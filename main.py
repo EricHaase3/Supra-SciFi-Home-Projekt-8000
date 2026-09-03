@@ -14,11 +14,9 @@ MQTT_BASE_TOPIC = "zigbee2mqtt/#"
 UPDATE_INTERVAL = 1000  # UI-Aktualisierung alle 1 Sekunde (ms)
 
 # Vordefinierte Sensor-Slots (für das 7 Zoll Display optimiert)
-# Hinweis: "Temp_Hum_David" ist der aktuelle Sensor (in Z2M noch als Temp_Hum_01 bekannt).
-# Bitte in Z2M unter http://sipi.local:8080 den Sensor von "Temp_Hum_01" auf "Temp_Hum_David" umbenennen!
 SLOTS = [
     {"id": "Temp_Hum_Jana", "name": "Jana"},
-    {"id": "Temp_Hum_01",   "name": "David"},   # <- Temp_Hum_01 in Z2M = David's Zimmer
+    {"id": "Temp_Hum_David", "name": "David"},
     {"id": "Temp_Hum_Eric", "name": "Eric"},
     {"id": "Temp_Hum_Dings", "name": "Dings"},
     {"id": "Temp_Hum_Balkon", "name": "Balkon"},
