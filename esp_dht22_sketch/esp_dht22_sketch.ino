@@ -19,8 +19,8 @@
 #define DHTTYPE       DHT22
 #define BUTTON_PIN    9
 
-// Sende-Intervall (20 Sek. zum Testen, später 600000 = 10 Min)
-const unsigned long SENDE_INTERVALL = 20000;
+// Sende-Intervall (10 Minuten = 600000 ms)
+const unsigned long SENDE_INTERVALL = 600000;
 
 // ─── Zigbee-Endpunkt (EP10 enthält Temp UND Feuchte) ─────────────
 DHT dht(DHTPIN, DHTTYPE);
