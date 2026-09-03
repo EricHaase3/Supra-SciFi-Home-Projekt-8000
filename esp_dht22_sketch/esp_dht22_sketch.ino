@@ -19,12 +19,13 @@
 #define DHTTYPE       DHT22   // DHT 22 (AM2302)
 #define BUTTON_PIN    9       // BOOT-Taste für Zigbee Factory-Reset
 
-// Sende-Intervall: 20 Sekunden zum Testen (später 10 Minuten: 600000)
+// Sende-Intervall: 20 Sekunden zum Testen (später 10 Minuten: 600000 ms)
 const unsigned long SENDE_INTERVALL = 20000; 
 
-// ─── Globale Objekte ─────────────────────────────────────────────
+// ─── Globale Objekte: Temperatur (EP 10) & Feuchte (EP 11) ───────
 DHT dht(DHTPIN, DHTTYPE);
-ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10); // Endpunkt 10
+ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10);
+ZigbeeHumiditySensor zbHumSensor = ZigbeeHumiditySensor(11);
 
 unsigned long letzteMessung = 0;
 
@@ -33,34 +34,39 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   dht.begin();
 
-  // Prüfen, ob die BOOT-Taste beim Start gehalten wird -> Zigbee Netzwerk löschen
+  // Prüfen, ob die BOOT-Taste beim Start gehalten wird -> Zigbee Factory-Reset
   bool resetGedrueckt = (digitalRead(BUTTON_PIN) == LOW);
   if (resetGedrueckt) {
     Serial.println(F("[Zigbee] Factory-Reset angefordert! Netzwerk-Daten werden gelöscht..."));
   }
 
-  // 1. Zigbee-Sensor konfigurieren (Metadaten & Grenzen)
+  // 1. Temperatur-Cluster konfigurieren (Endpunkt 10)
   zbTempSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
-  zbTempSensor.setMinMaxValue(-20.0, 60.0); // Bereich in °C
-  zbTempSensor.setTolerance(0.1);          // Mindeständerung
+  zbTempSensor.setMinMaxValue(-20.0, 60.0);
+  zbTempSensor.setTolerance(0.1);
 
-  // 2. Endpunkt bei Zigbee registrieren
+  // 2. Feuchtigkeits-Cluster konfigurieren (Endpunkt 11)
+  zbHumSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
+  zbHumSensor.setMinMaxValue(0.0, 100.0);
+  zbHumSensor.setTolerance(0.5);
+
+  // Endpunkte registrieren
   Zigbee.addEndpoint(&zbTempSensor);
+  Zigbee.addEndpoint(&zbHumSensor);
 
   // 3. Zigbee-Stack starten
-  Serial.println(F("[Zigbee] Starte Zigbee End Device..."));
+  Serial.println(F("[Zigbee] Starte Zigbee End Device mit Temp & Feuchte..."));
   if (!Zigbee.begin(ZIGBEE_END_DEVICE, resetGedrueckt)) {
     Serial.println(F("[Zigbee] FEHLER: Zigbee konnte nicht initialisiert werden!"));
     while (1) delay(1000);
   }
 
-  // 4. Direkt nach dem Start ersten Messwert erfassen und setzen
+  // 4. Initiale Sensorwerte setzen
   delay(1500);
   float startTemp = dht.readTemperature();
-  if (!isnan(startTemp)) {
-    zbTempSensor.setTemperature(startTemp);
-    Serial.printf("[Sensor] Initiale Temperatur gesetzt: %.2f °C\n", startTemp);
-  }
+  float startHum  = dht.readHumidity();
+  if (!isnan(startTemp)) zbTempSensor.setTemperature(startTemp);
+  if (!isnan(startHum))  zbHumSensor.setHumidity(startHum);
 
   Serial.println(F("[Zigbee] Bereit und wartet auf Messungen."));
 }
@@ -76,19 +82,21 @@ void loop() {
     float hum  = dht.readHumidity();
 
     if (isnan(temp) || isnan(hum)) {
-      Serial.println(F("[Sensor] FEHLER: Konnte keine Daten vom DHT22 einlesen! Verkabelung prüfen."));
+      Serial.println(F("[Sensor] FEHLER: Konnte keine Daten vom DHT22 einlesen!"));
       return;
     }
 
     Serial.printf("[Sensor] Temp: %.2f °C | Feuchte: %.1f %%\n", temp, hum);
 
-    // Temperatur im Zigbee-Cluster aktualisieren und aktiv senden
+    // Temperatur & Luftfeuchtigkeit an Z2M melden
     bool verbunden = Zigbee.connected();
     if (verbunden) {
       Serial.println(F("[Zigbee] Status: VERBUNDEN (Online)"));
       zbTempSensor.setTemperature(temp);
       zbTempSensor.report();
-      Serial.println(F("[Zigbee] Messwert an Koordinator gemeldet!"));
+      zbHumSensor.setHumidity(hum);
+      zbHumSensor.report();
+      Serial.println(F("[Zigbee] Messwerte (Temp & Feuchte) erfolgreich gemeldet!"));
     } else {
       Serial.println(F("[Zigbee] Status: Suche Verbindung zum Koordinator..."));
     }
