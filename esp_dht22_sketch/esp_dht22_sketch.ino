@@ -42,6 +42,10 @@ void setup() {
   zbTempSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
   zbTempSensor.setMinMaxValue(-20.0, 60.0);
   zbTempSensor.setTolerance(0.1);
+  
+  // WICHTIG: Feuchtigkeits-Support auf diesem Endpunkt explizit aktivieren!
+  // Parameter: min(0%), max(100%), toleranz(0.5%)
+  zbTempSensor.addHumiditySensor(0.0, 100.0, 0.5);
 
   // 2. Endpunkt registrieren
   Zigbee.addEndpoint(&zbTempSensor);
