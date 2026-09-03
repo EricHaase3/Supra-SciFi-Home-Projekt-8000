@@ -41,14 +41,14 @@ void setup() {
   // 2. Endpunkt bei Zigbee registrieren
   Zigbee.addEndpoint(&zbTempSensor);
 
-  // 3. Prüfen, ob BOOT-Taste gedrückt ist (Factory Reset erzwingen)
+  // 3. Prüfen, ob BOOT-Taste beim Start gedrückt ist (Reset erzwingen)
   bool resetGedrueckt = (digitalRead(BOOT_BUTTON) == LOW);
   if (resetGedrueckt) {
-    Serial.println("[Zigbee] BOOT-Taste gedrückt -> NVRAM Reset & neuer Pairing-Modus!");
+    Serial.println("[Zigbee] BOOT-Taste gedrückt -> Speicher gelöscht & neuer Pairing-Modus!");
   }
 
-  // 4. Zigbee starten
-  Serial.println("[Zigbee] Starte Zigbee Stack...");
+  // 4. Zigbee starten (die Netzwerksuche läuft automatisch im Hintergrund)
+  Serial.println("[Zigbee] Starte Zigbee End Device...");
   if (!Zigbee.begin(ZIGBEE_END_DEVICE, resetGedrueckt)) {
     Serial.println("[Zigbee] FEHLER beim Initialisieren von Zigbee!");
     while (1) {
@@ -56,9 +56,7 @@ void setup() {
     }
   }
 
-  // 5. Netzwerksuche (Pairing) aktiv starten
-  Serial.println("[Zigbee] Starte Netzwerksuche nach Koordinator...");
-  Zigbee.searchNetwork();
+  Serial.println("[Zigbee] Stack gestartet! Suche Koordinator (Permit Join in Z2M aktivieren)...");
 }
 
 void loop() {
@@ -72,23 +70,18 @@ void loop() {
     bool verbunden = Zigbee.connected();
     Serial.printf("\n[Zigbee] Status: %s\n", verbunden ? "VERBUNDEN (Online)" : "SUCHE NETZWERK...");
 
-    if (!verbunden) {
-      // Falls noch nicht verbunden, Suche wiederholen
-      Zigbee.searchNetwork();
-    }
-
     float temp = dht.readTemperature();
     float hum  = dht.readHumidity();
 
     if (isnan(temp)) {
-      Serial.println("[DHT22] Fehler: Konnte Temperatur nicht lesen!");
+      Serial.println("[DHT22] Warnung: Konnte Temperatur nicht lesen!");
     } else {
       Serial.printf("[Sensor] Temp: %.2f °C | Feuchte: %.1f %%\n", temp, isnan(hum) ? 0.0 : hum);
 
       if (verbunden) {
         zbTempSensor.setTemperature(temp);
         zbTempSensor.report();
-        Serial.println("[Zigbee] Messwert erfolgreich gesendet!");
+        Serial.println("[Zigbee] Messwert an Koordinator gesendet!");
       }
     }
   }
