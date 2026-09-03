@@ -66,7 +66,8 @@ def on_message(client, userdata, msg):
 
         # Luftfeuchtigkeit extrahieren
         hum = None
-        for key in ("humidity", "hum", "relative_humidity"):
+        # "humidity" = echter Cluster | "temperature_ep11"/"temperature_2" = Workaround via 2. ZigbeeTempSensor EP
+        for key in ("humidity", "hum", "relative_humidity", "temperature_ep11", "temperature_2"):
             if key in payload and payload[key] is not None:
                 hum = float(payload[key])
                 break

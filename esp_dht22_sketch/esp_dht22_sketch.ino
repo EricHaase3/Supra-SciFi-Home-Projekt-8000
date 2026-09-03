@@ -24,8 +24,8 @@ const unsigned long SENDE_INTERVALL = 20000;
 
 // ─── Globale Objekte: Temperatur (EP 10) & Feuchte (EP 11) ───────
 DHT dht(DHTPIN, DHTTYPE);
-ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10);
-ZigbeeHumidity   zbHumSensor  = ZigbeeHumidity(11);
+ZigbeeTempSensor zbTempSensor = ZigbeeTempSensor(10); // EP10: Temperatur
+ZigbeeTempSensor zbHumSensor  = ZigbeeTempSensor(11); // EP11: Luftfeuchte (Wert als Temperaturäquivalent)
 
 unsigned long letzteMessung = 0;
 
@@ -45,7 +45,7 @@ void setup() {
   zbTempSensor.setMinMaxValue(-20.0, 60.0);
   zbTempSensor.setTolerance(0.1);
 
-  // 2. Feuchtigkeits-Cluster konfigurieren (Endpunkt 11)
+  // 2. Feuchtigkeits-Endpunkt konfigurieren (EP11, Wert als Temperatur-Cluster)
   zbHumSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
   zbHumSensor.setMinMaxValue(0.0, 100.0);
   zbHumSensor.setTolerance(0.5);
@@ -94,7 +94,8 @@ void loop() {
       Serial.println(F("[Zigbee] Status: VERBUNDEN (Online)"));
       zbTempSensor.setTemperature(temp);
       zbTempSensor.report();
-      zbHumSensor.setHumidity(hum);
+      // Luftfeuchte auf EP11 als Temperaturwert senden (Workaround)
+      zbHumSensor.setTemperature(hum);
       zbHumSensor.report();
       Serial.println(F("[Zigbee] Messwerte (Temp & Feuchte) erfolgreich gemeldet!"));
     } else {
