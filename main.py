@@ -9,7 +9,7 @@ from database import init_db, save_measurement
 
 # ─── Konfiguration ────────────────────────────────────────────────
 MQTT_BROKER     = "localhost"
-MQTT_BASE_TOPIC = "zigbee2mqtt/#"  # Lauscht auf alle Ebenen
+MQTT_BASE_TOPIC = "zigbee2mqtt/#"  # Lauscht auf alle Sensoren
 MAX_WERTE       = 60               # Anzahl sichtbarer Messpunkte im Diagramm
 # ──────────────────────────────────────────────────────────────────
 
@@ -39,29 +39,39 @@ def on_message(client, userdata, msg):
 
         sensor_name = topic_parts[1]
         
-        # Interne Zigbee2MQTT Status-Meldungen überspringen
+        # Interne Status-Meldungen von Zigbee2MQTT überspringen
         if sensor_name == "bridge":
             return
 
         payload = json.loads(msg.payload.decode("utf-8"))
         print(f"[MQTT Eingang] {msg.topic} -> {payload}")
 
-        temp = payload.get("temperature") or payload.get("local_temperature") or payload.get("temp")
-        hum  = payload.get("humidity") or payload.get("hum")
+        # Sichere Extraktion (auch bei 0.0 nicht fälschlich als None werten)
+        temp = None
+        for key in ("temperature", "local_temperature", "temp"):
+            if key in payload and payload[key] is not None:
+                temp = payload[key]
+                break
+
+        hum = None
+        for key in ("humidity", "hum", "relative_humidity"):
+            if key in payload and payload[key] is not None:
+                hum = payload[key]
+                break
 
         if temp is None:
             return
 
         jetzt = datetime.now().strftime("%H:%M:%S")
 
-        # 1. In SQLite Datenbank sichern
+        # 1. Messwert in SQLite-Datenbank speichern
         save_measurement(
             sensor_name=sensor_name,
             temperature=float(temp),
             humidity=float(hum) if hum is not None else None
         )
 
-        # 2. In Live-Grafik aufnehmen
+        # 2. In Live-Diagramm aufnehmen
         with lock:
             aktiver_sensor = sensor_name
             temperaturen.append(float(temp))
@@ -166,7 +176,7 @@ def erstelle_diagramm():
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])
 
-    # Vollbildmodus aktivieren
+    # Vollbildmodus
     mng = plt.get_current_fig_manager()
     try:
         mng.full_screen_toggle()
