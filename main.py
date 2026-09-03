@@ -13,14 +13,14 @@ MQTT_BROKER     = "localhost"
 MQTT_BASE_TOPIC = "zigbee2mqtt/#"
 UPDATE_INTERVAL = 1000  # UI-Aktualisierung alle 1 Sekunde (ms)
 
-# Vordefinierte Sensor-Slots (erweiterbar auf 5+ Räume)
+# Vordefinierte Sensor-Slots (für das 7 Zoll Display optimiert)
 SLOTS = [
-    {"id": "Temp_Hum_01", "name": "Sensor 01 – Wohnzimmer"},
-    {"id": "Temp_Hum_02", "name": "Sensor 02 – Schlafzimmer"},
-    {"id": "Temp_Hum_03", "name": "Sensor 03 – Büro / Labor"},
-    {"id": "Temp_Hum_04", "name": "Sensor 04 – Küche"},
-    {"id": "Temp_Hum_05", "name": "Sensor 05 – Außenbereich"},
-    {"id": "SYSTEM_INFO", "name": "🛰️ Supra SciFi Zentrale"}
+    {"id": "Temp_Hum_Jana", "name": "Jana"},
+    {"id": "Temp_Hum_David", "name": "David"},
+    {"id": "Temp_Hum_Eric", "name": "Eric"},
+    {"id": "Temp_Hum_Dings", "name": "Dings"},
+    {"id": "Temp_Hum_Balkon", "name": "Balkon"},
+    {"id": "SYSTEM_INFO", "name": "Zentrale"}
 ]
 
 # Lokaler Zwischenspeicher für die Anzeige
@@ -140,8 +140,8 @@ def erstelle_dashboard():
             aktuelle_daten = {k: dict(v) for k, v in sensor_daten.items()}
 
         uhrzeit_jetzt = datetime.now().strftime("%d.%m.%Y  •  %H:%M:%S")
-        fig.suptitle(f"🛰️  SUPRA SCI-FI HOME 8000  •  KLIMA-LEITSTAND\n{uhrzeit_jetzt}",
-                     color="#cdd6f4", fontsize=15, fontweight="bold", y=0.97)
+        fig.suptitle(f"🛰️ SUPRA SCI-FI HOME 8000 • KLIMA-LEITSTAND\n{uhrzeit_jetzt}",
+                     color="#cdd6f4", fontsize=18, fontweight="bold", y=0.96)
 
         for idx, slot in enumerate(SLOTS):
             ax = flat_axes[idx]
@@ -160,15 +160,15 @@ def erstelle_dashboard():
             if slot_id == "SYSTEM_INFO":
                 ax.spines[:].set_color("#89b4fa")
                 ax.text(0.5, 0.85, "🛰️ ZENTRALSTATION", color="#89b4fa",
+                        fontsize=15, fontweight="bold", ha="center", va="center")
+                ax.text(0.5, 0.62, "Host: sipi.local (RPi)", color="#a6adc8",
+                        fontsize=12, ha="center", va="center")
+                ax.text(0.5, 0.45, "Protokoll: Zigbee 3.0 / MQTT", color="#a6adc8",
+                        fontsize=12, ha="center", va="center")
+                ax.text(0.5, 0.28, "DB: SQLite (Dauerlogger)", color="#a6adc8",
+                        fontsize=12, ha="center", va="center")
+                ax.text(0.5, 0.10, "Status: SYSTEM BEREIT ●", color="#a6e3a1",
                         fontsize=13, fontweight="bold", ha="center", va="center")
-                ax.text(0.5, 0.65, "Host: sipi.local (RPi)", color="#a6adc8",
-                        fontsize=11, ha="center", va="center")
-                ax.text(0.5, 0.48, "Protokoll: Zigbee 3.0 / MQTT", color="#a6adc8",
-                        fontsize=11, ha="center", va="center")
-                ax.text(0.5, 0.32, "Datenbank: SQLite (Dauerlogger)", color="#a6adc8",
-                        fontsize=11, ha="center", va="center")
-                ax.text(0.5, 0.15, "Status: SYSTEM BEREIT ●", color="#a6e3a1",
-                        fontsize=12, fontweight="bold", ha="center", va="center")
                 continue
 
             daten = aktuelle_daten.get(slot_id, {"temp": None, "hum": None, "last_seen": None, "online": False})
@@ -187,13 +187,13 @@ def erstelle_dashboard():
                 status_color = "#6c7086"  # Grau
 
             # Titelzeile der Kachel
-            ax.text(0.08, 0.88, slot_name, color="#cdd6f4",
-                    fontsize=12, fontweight="bold", ha="left", va="center")
-            ax.text(0.92, 0.88, status_text, color=status_color,
-                    fontsize=10, fontweight="bold", ha="right", va="center")
+            ax.text(0.05, 0.88, slot_name, color="#cdd6f4",
+                    fontsize=16, fontweight="bold", ha="left", va="center")
+            ax.text(0.95, 0.88, status_text, color=status_color,
+                    fontsize=12, fontweight="bold", ha="right", va="center")
 
             # Trennlinie
-            ax.axhline(0.78, 0.05, 0.95, color="#313244", linewidth=1.0)
+            ax.axhline(0.78, 0.03, 0.97, color="#313244", linewidth=1.5)
 
             # Große Zahlenwerte für Temperatur
             if temp is not None:
@@ -217,25 +217,26 @@ def erstelle_dashboard():
 
             # Anzeige Temperatur-Block (Links)
             ax.text(0.28, 0.52, temp_str, color=t_color,
-                    fontsize=26, fontweight="bold", ha="center", va="center")
-            ax.text(0.28, 0.30, f"Temperatur ({temp_unit})", color="#a6adc8",
-                    fontsize=9, ha="center", va="center")
+                    fontsize=38, fontweight="bold", ha="center", va="center")
+            ax.text(0.28, 0.25, f"Temperatur ({temp_unit})", color="#a6adc8",
+                    fontsize=12, ha="center", va="center")
 
             # Vertikale Trennlinie
-            ax.axvline(0.50, 0.22, 0.72, color="#313244", linewidth=1.0)
+            ax.axvline(0.50, 0.20, 0.72, color="#313244", linewidth=1.5)
 
             # Anzeige Feuchte-Block (Rechts)
             ax.text(0.72, 0.52, hum_str, color=h_color,
-                    fontsize=26, fontweight="bold", ha="center", va="center")
-            ax.text(0.72, 0.30, f"Luftfeuchte ({hum_unit})", color="#a6adc8",
-                    fontsize=9, ha="center", va="center")
+                    fontsize=38, fontweight="bold", ha="center", va="center")
+            ax.text(0.72, 0.25, f"Luftfeuchte ({hum_unit})", color="#a6adc8",
+                    fontsize=12, ha="center", va="center")
 
             # Fußzeile mit Zeitstempel
             last_text = f"Letztes Signal: {last}" if last else "Wartet auf Funkkontakt..."
-            ax.text(0.5, 0.10, last_text, color="#6c7086",
-                    fontsize=8, ha="center", va="center")
+            ax.text(0.5, 0.08, last_text, color="#6c7086",
+                    fontsize=11, ha="center", va="center")
 
-        plt.subplots_adjust(left=0.04, right=0.96, top=0.88, bottom=0.05, wspace=0.15, hspace=0.18)
+        # Für 7 Zoll Bildschirm (z. B. 1024x600 oder 800x480): engere Ränder
+        plt.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.03, wspace=0.1, hspace=0.12)
 
     ani = animation.FuncAnimation(fig, zeichne_kacheln, interval=UPDATE_INTERVAL, cache_frame_data=False)
     plt.show()
