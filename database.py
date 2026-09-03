@@ -66,3 +66,34 @@ def get_stats_summary():
                 GROUP BY sensor_name
             """)
             return cursor.fetchall()
+
+def get_last_values():
+    """Lädt den jeweils letzten gespeicherten Messwert pro Sensor aus der Datenbank.
+    Wird beim Programmstart verwendet, damit die Kacheln sofort Daten anzeigen."""
+    with db_lock:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT sensor_name, temperature, humidity, timestamp
+                FROM measurements
+                WHERE id IN (
+                    SELECT MAX(id) FROM measurements GROUP BY sensor_name
+                )
+            """)
+            rows = cursor.fetchall()
+    result = {}
+    for row in rows:
+        sensor_name, temp, hum, ts = row
+        # Nur die Uhrzeit als Anzeigetext
+        try:
+            ts_kurz = ts.split(" ")[1][:8] if ts and " " in ts else ts
+        except Exception:
+            ts_kurz = ts
+        result[sensor_name] = {
+            "temp": float(temp) if temp is not None else None,
+            "hum": float(hum) if hum is not None else None,
+            "last_seen": ts_kurz,
+            "online": False  # Werte aus DB, noch kein aktuelles Signal
+        }
+    return result
+

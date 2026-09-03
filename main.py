@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.patches as patches
-from database import init_db, save_measurement, get_stats_summary
+from database import init_db, save_measurement, get_stats_summary, get_last_values
 
 # ─── Konfiguration ────────────────────────────────────────────────
 MQTT_BROKER     = "localhost"
@@ -140,8 +140,8 @@ def erstelle_dashboard():
             aktuelle_daten = {k: dict(v) for k, v in sensor_daten.items()}
 
         uhrzeit_jetzt = datetime.now().strftime("%d.%m.%Y  •  %H:%M:%S")
-        fig.suptitle(f"🛰️ SUPRA SCI-FI HOME 8000 • KLIMA-LEITSTAND\n{uhrzeit_jetzt}",
-                     color="#cdd6f4", fontsize=18, fontweight="bold", y=0.96)
+        fig.suptitle(f"🛰️  SUPRA SCI-FI HOME 8000  •  {uhrzeit_jetzt}",
+                     color="#cdd6f4", fontsize=11, fontweight="bold", y=0.98)
 
         for idx, slot in enumerate(SLOTS):
             ax = flat_axes[idx]
@@ -187,13 +187,13 @@ def erstelle_dashboard():
                 status_color = "#6c7086"  # Grau
 
             # Titelzeile der Kachel
-            ax.text(0.05, 0.88, slot_name, color="#cdd6f4",
-                    fontsize=16, fontweight="bold", ha="left", va="center")
-            ax.text(0.95, 0.88, status_text, color=status_color,
-                    fontsize=12, fontweight="bold", ha="right", va="center")
+            ax.text(0.05, 0.90, slot_name, color="#cdd6f4",
+                    fontsize=13, fontweight="bold", ha="left", va="center")
+            ax.text(0.95, 0.90, status_text, color=status_color,
+                    fontsize=9, fontweight="bold", ha="right", va="center")
 
             # Trennlinie
-            ax.axhline(0.78, 0.03, 0.97, color="#313244", linewidth=1.5)
+            ax.axhline(0.80, 0.03, 0.97, color="#313244", linewidth=1.5)
 
             # Große Zahlenwerte für Temperatur
             if temp is not None:
@@ -216,24 +216,24 @@ def erstelle_dashboard():
                 h_color = "#585b70"
 
             # Anzeige Temperatur-Block (Links)
-            ax.text(0.28, 0.52, temp_str, color=t_color,
-                    fontsize=38, fontweight="bold", ha="center", va="center")
-            ax.text(0.28, 0.25, f"Temperatur ({temp_unit})", color="#a6adc8",
-                    fontsize=12, ha="center", va="center")
+            ax.text(0.28, 0.53, temp_str, color=t_color,
+                    fontsize=32, fontweight="bold", ha="center", va="center")
+            ax.text(0.28, 0.26, f"Temp ({temp_unit})", color="#a6adc8",
+                    fontsize=9, ha="center", va="center")
 
             # Vertikale Trennlinie
-            ax.axvline(0.50, 0.20, 0.72, color="#313244", linewidth=1.5)
+            ax.axvline(0.50, 0.20, 0.75, color="#313244", linewidth=1.5)
 
             # Anzeige Feuchte-Block (Rechts)
-            ax.text(0.72, 0.52, hum_str, color=h_color,
-                    fontsize=38, fontweight="bold", ha="center", va="center")
-            ax.text(0.72, 0.25, f"Luftfeuchte ({hum_unit})", color="#a6adc8",
-                    fontsize=12, ha="center", va="center")
+            ax.text(0.72, 0.53, hum_str, color=h_color,
+                    fontsize=32, fontweight="bold", ha="center", va="center")
+            ax.text(0.72, 0.26, f"Feuchte ({hum_unit})", color="#a6adc8",
+                    fontsize=9, ha="center", va="center")
 
             # Fußzeile mit Zeitstempel
-            last_text = f"Letztes Signal: {last}" if last else "Wartet auf Funkkontakt..."
-            ax.text(0.5, 0.08, last_text, color="#6c7086",
-                    fontsize=11, ha="center", va="center")
+            last_text = f"Signal: {last}" if last else "Warte auf Funksignal..."
+            ax.text(0.5, 0.09, last_text, color="#6c7086",
+                    fontsize=8, ha="center", va="center")
 
         # Für 7 Zoll Bildschirm (z. B. 1024x600 oder 800x480): engere Ränder
         plt.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.03, wspace=0.1, hspace=0.12)
@@ -245,9 +245,20 @@ def erstelle_dashboard():
 # ─── Start ────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
+
+    # Letzte bekannte Werte aus der Datenbank vorausfüllen (sofortige Anzeige nach Neustart)
+    vorwerte = get_last_values()
+    for sensor_id, werte in vorwerte.items():
+        if sensor_id in sensor_daten:
+            sensor_daten[sensor_id].update(werte)
+        else:
+            sensor_daten[sensor_id] = werte
+    if vorwerte:
+        print(f"[DB] {len(vorwerte)} Sensor(en) mit letzten Werten aus der Datenbank vorgeladen.")
+
     t = threading.Thread(target=mqtt_thread, daemon=True)
     t.start()
-    
+
     try:
         erstelle_dashboard()
     except KeyboardInterrupt:
