@@ -19,8 +19,7 @@
 #define DHTTYPE       DHT22   // DHT 22 (AM2302)
 #define BUTTON_PIN    9       // BOOT-Taste für Zigbee Factory-Reset
 
-// Sende-Intervall: Für den Live-Test z.B. 20 Sekunden (20000)
-// Für den Dauerbetrieb später: 10 Minuten = 600000 ms (10 * 60 * 1000)
+// Sende-Intervall: 20 Sekunden zum Testen (später 10 Minuten: 600000)
 const unsigned long SENDE_INTERVALL = 20000; 
 
 // ─── Globale Objekte ─────────────────────────────────────────────
@@ -40,27 +39,27 @@ void setup() {
     Serial.println(F("[Zigbee] Factory-Reset angefordert! Netzwerk-Daten werden gelöscht..."));
   }
 
-  // 1. Zigbee-Sensor konfigurieren
+  // 1. Zigbee-Sensor konfigurieren (Metadaten & Grenzen)
   zbTempSensor.setManufacturerAndModel("SciFi-Home", "ESP32H2-DHT22");
-  zbTempSensor.setMinMaxValue(-20, 60); // Temperaturbereich in °C
-  zbTempSensor.setTolerance(0.2);       // Mindeständerung für automatisches Reporting
-
-  // Ersten Messwert direkt vor dem Zigbee-Start einlesen
-  delay(1000);
-  float startTemp = dht.readTemperature();
-  if (!isnan(startTemp)) {
-    zbTempSensor.setTemperature(startTemp);
-    Serial.printf("[Sensor] Startwert Temperatur: %.2f °C\n", startTemp);
-  }
+  zbTempSensor.setMinMaxValue(-20.0, 60.0); // Bereich in °C
+  zbTempSensor.setTolerance(0.1);          // Mindeständerung
 
   // 2. Endpunkt bei Zigbee registrieren
   Zigbee.addEndpoint(&zbTempSensor);
 
-  // 3. Zigbee-Stack als End Device starten
+  // 3. Zigbee-Stack starten
   Serial.println(F("[Zigbee] Starte Zigbee End Device..."));
   if (!Zigbee.begin(ZIGBEE_END_DEVICE, resetGedrueckt)) {
     Serial.println(F("[Zigbee] FEHLER: Zigbee konnte nicht initialisiert werden!"));
     while (1) delay(1000);
+  }
+
+  // 4. Direkt nach dem Start ersten Messwert erfassen und setzen
+  delay(1500);
+  float startTemp = dht.readTemperature();
+  if (!isnan(startTemp)) {
+    zbTempSensor.setTemperature(startTemp);
+    Serial.printf("[Sensor] Initiale Temperatur gesetzt: %.2f °C\n", startTemp);
   }
 
   Serial.println(F("[Zigbee] Bereit und wartet auf Messungen."));
@@ -89,7 +88,7 @@ void loop() {
       Serial.println(F("[Zigbee] Status: VERBUNDEN (Online)"));
       zbTempSensor.setTemperature(temp);
       zbTempSensor.report();
-      Serial.println(F("[Zigbee] Messwert an Koordinator gesendet!"));
+      Serial.println(F("[Zigbee] Messwert an Koordinator gemeldet!"));
     } else {
       Serial.println(F("[Zigbee] Status: Suche Verbindung zum Koordinator..."));
     }
