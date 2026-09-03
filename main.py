@@ -238,6 +238,7 @@ def erstelle_dashboard():
         # Für 7 Zoll Bildschirm (z. B. 1024x600 oder 800x480): engere Ränder
         plt.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.03, wspace=0.1, hspace=0.12)
 
+    fig.canvas.mpl_connect('close_event', lambda event: __import__('sys').exit(0))
     ani = animation.FuncAnimation(fig, zeichne_kacheln, interval=UPDATE_INTERVAL, cache_frame_data=False)
     plt.show()
 
@@ -246,4 +247,9 @@ if __name__ == "__main__":
     init_db()
     t = threading.Thread(target=mqtt_thread, daemon=True)
     t.start()
-    erstelle_dashboard()
+    
+    try:
+        erstelle_dashboard()
+    except KeyboardInterrupt:
+        print("\n[System] Programm durch Benutzer (Ctrl+C) beendet.")
+        __import__('sys').exit(0)
