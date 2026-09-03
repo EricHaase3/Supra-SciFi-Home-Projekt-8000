@@ -17,10 +17,13 @@ temperaturen  = deque(maxlen=MAX_WERTE)
 luftfeuchten  = deque(maxlen=MAX_WERTE)
 zeitstempel   = deque(maxlen=MAX_WERTE)
 lock          = threading.Lock()
+ani           = None  # Referenz halten, um Garbage Collection zu verhindern
 
 # ─── MQTT Callbacks ───────────────────────────────────────────────
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
+def on_connect(client, userdata, flags, rc, properties=None):
+    # Unterstützt paho-mqtt Version 1.x und 2.x
+    code = rc if isinstance(rc, int) else getattr(rc, "value", 0)
+    if code == 0:
         print(f"[MQTT] Verbunden mit Broker {MQTT_BROKER}")
         client.subscribe(MQTT_TOPIC)
         print(f"[MQTT] Topic abonniert: {MQTT_TOPIC}")
@@ -31,22 +34,21 @@ def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
 
-        # Zigbee2MQTT liefert die Werte bereits umgerechnet (nicht × 100)
+        # Zigbee2MQTT liefert Temperatur und ggf. Feuchte
         temp = payload.get("temperature")
-        hum  = payload.get("humidity")
+        hum  = payload.get("humidity", 0)
 
-        if temp is None or hum is None:
-            print(f"[MQTT] Unvollständige Nachricht: {payload}")
+        if temp is None:
             return
 
         jetzt = datetime.now().strftime("%H:%M:%S")
 
         with lock:
             temperaturen.append(float(temp))
-            luftfeuchten.append(float(hum))
+            luftfeuchten.append(float(hum) if hum is not None else 0.0)
             zeitstempel.append(jetzt)
 
-        print(f"[{jetzt}] Temp: {temp:.1f} °C | Feuchte: {hum:.1f} %")
+        print(f"[{jetzt}] Temp: {float(temp):.1f} °C | Feuchte: {float(hum):.1f} %")
 
     except json.JSONDecodeError:
         print(f"[MQTT] Ungültiges JSON: {msg.payload}")
@@ -55,7 +57,13 @@ def on_message(client, userdata, msg):
 
 # ─── MQTT-Client in eigenem Thread ────────────────────────────────
 def mqtt_thread():
-    client = mqtt.Client()
+    try:
+        # Paho-MQTT 2.0+ Callback API
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except AttributeError:
+        # Fallback für ältere Versionen
+        client = mqtt.Client()
+
     client.on_connect = on_connect
     client.on_message = on_message
     try:
@@ -66,9 +74,10 @@ def mqtt_thread():
 
 # ─── Visualisierung ───────────────────────────────────────────────
 def erstelle_diagramm():
+    global ani
     fig, (ax_temp, ax_hum) = plt.subplots(2, 1, figsize=(12, 7))
     fig.patch.set_facecolor("#1e1e2e")
-    fig.suptitle("Smarthome – DHT22 Live-Daten", color="white",
+    fig.suptitle("SciFi-Home – DHT22 Live-Daten (Zigbee)", color="white",
                  fontsize=14, fontweight="bold")
 
     for ax in (ax_temp, ax_hum):
@@ -99,12 +108,10 @@ def erstelle_diagramm():
         ax_temp.set_title("Temperatur", color="#cdd6f4", fontsize=11)
         ax_temp.tick_params(colors="#aaaacc", labelsize=8)
         ax_temp.spines[:].set_color("#44445a")
-        # Aktuellen Wert als Annotation
         ax_temp.annotate(f"{temps[-1]:.1f} °C",
                          xy=(zeiten[-1], temps[-1]),
                          xytext=(5, 5), textcoords="offset points",
                          color="#f38ba8", fontsize=9)
-        # X-Achse ausdünnen
         step = max(1, len(zeiten) // 6)
         ax_temp.set_xticks(range(0, len(zeiten), step))
         ax_temp.set_xticklabels(zeiten[::step], rotation=30, ha="right")
@@ -122,9 +129,9 @@ def erstelle_diagramm():
         ax_hum.tick_params(colors="#aaaacc", labelsize=8)
         ax_hum.spines[:].set_color("#44445a")
         ax_hum.annotate(f"{hums[-1]:.1f} %",
-                        xy=(zeiten[-1], hums[-1]),
-                        xytext=(5, 5), textcoords="offset points",
-                        color="#89b4fa", fontsize=9)
+                         xy=(zeiten[-1], hums[-1]),
+                         xytext=(5, 5), textcoords="offset points",
+                         color="#89b4fa", fontsize=9)
         step = max(1, len(zeiten) // 6)
         ax_hum.set_xticks(range(0, len(zeiten), step))
         ax_hum.set_xticklabels(zeiten[::step], rotation=30, ha="right")
@@ -132,7 +139,7 @@ def erstelle_diagramm():
         plt.tight_layout(rect=[0, 0, 1, 0.95])
 
     ani = animation.FuncAnimation(fig, aktualisieren,
-                                  interval=5000, cache_frame_data=False)
+                                  interval=2000, cache_frame_data=False)
     plt.show()
 
 # ─── Start ────────────────────────────────────────────────────────
