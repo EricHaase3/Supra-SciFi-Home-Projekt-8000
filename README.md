@@ -70,3 +70,9 @@ python3 stats.py
 ### Ausblick (Was kommt als nächstes?)
 - **Jahresrückblick & Datenanalyse:** Ausbau von `stats.py` zu einem Script, das langfristige Auswertungen und Graphen aus der SQLite-Datenbank generiert (z.B. für Temperaturverläufe über Wochen/Monate).
 - **Batterie-Überwachung:** Den internen ADC (Analog-Digital-Wandler) des ESP32 auslesen und den echten Batteriestand (anstelle von fixen 100%) übertragen.
+- **Vision: Interaktives 10-Zoll Hausflur-Terminal:**
+  - Migration auf ein größeres 10-Zoll Touchdisplay als zentrales UI.
+  - Eine Benutzeroberfläche mit **3 Reitern (Tabs)**:
+    1. **Live:** Aktuelle Temperatur- und Feuchtigkeitswerte.
+    2. **Historie:** Diagramme und Graphen der letzten Tage, Wochen und Monate.
+    3. **Info & Steuerung:** Erinnerungen (z.B. Müllkalender) und System-Buttons (wie z.B. ein Button zum sicheren Herunterfahren des Raspberry Pi ohne Konsolenbefehl).
