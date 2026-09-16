@@ -76,10 +76,11 @@ C_ORANGE  = "#fab387"
 C_CYAN    = "#89dceb"
 C_YELLOW  = "#f9e2af"
 
+# TAB-Farben deutlich heller gemacht fuer den inaktiven Zustand (#313244)
 TAB_COLORS = {
-    "live":      {"active": C_GREEN,  "inactive": "#12120f"},
-    "historie":  {"active": C_CYAN,   "inactive": "#0a0f12"},
-    "steuerung": {"active": C_YELLOW, "inactive": "#120f00"},
+    "live":      {"active": C_GREEN,  "inactive": "#313244"},
+    "historie":  {"active": C_CYAN,   "inactive": "#313244"},
+    "steuerung": {"active": C_YELLOW, "inactive": "#313244"},
 }
 
 # ─── Hilfsfunktionen ────────────────────────────────────────────────────────
@@ -253,9 +254,9 @@ def erstelle_dashboard():
         bax = fig.add_axes([TAB_X + 0.005, y_pos, TAB_W - 0.010, h_pos])
         btn = Button(bax, label,
                      color=TAB_COLORS[key]["inactive"], hovercolor=BG_BORDER)
-        btn.label.set_fontsize(10)
-        btn.label.set_fontweight("normal")
-        btn.label.set_color(C_MUTED)
+        btn.label.set_fontsize(11)
+        btn.label.set_fontweight("bold")
+        btn.label.set_color(C_SUBTLE)
         btn.label.set_rotation(90)
         tab_btns.append(btn)
 
@@ -278,12 +279,12 @@ def erstelle_dashboard():
                 btn.ax.set_facecolor(TAB_COLORS[key]["active"])
                 btn.label.set_color(BG_DEEP)
                 btn.label.set_fontweight("bold")
-                btn.label.set_fontsize(11)
+                btn.label.set_fontsize(13)
             else:
                 btn.ax.set_facecolor(TAB_COLORS[key]["inactive"])
-                btn.label.set_color(C_MUTED)
-                btn.label.set_fontweight("normal")
-                btn.label.set_fontsize(10)
+                btn.label.set_color(C_SUBTLE) # Helleres Textgrau fuer bessere Lesbarkeit
+                btn.label.set_fontweight("bold")
+                btn.label.set_fontsize(11)
 
     def switch_tab(key):
         global aktiver_tab
@@ -323,7 +324,7 @@ def erstelle_dashboard():
         with lock:
             snap = {k: dict(v) for k, v in sensor_daten.items()}
 
-        # Termine fuer Zentralstation einmal laden
+        # Termine fuer Kachel 6 einmal laden
         daten_erinnerungen = lade_erinnerungen()
         termine = berechne_termine(daten_erinnerungen.get("termine", []))
 
@@ -337,39 +338,45 @@ def erstelle_dashboard():
 
             sid, sname = slot["id"], slot["name"]
 
-            # ── Kachel 6: Zentralstation mit Terminen ──────────────────────
+            # ── Kachel 6: TERMINE ──────────────────────────────────────────
             if sid == "SYSTEM_INFO":
-                ax.spines[:].set_color(C_BLUE); ax.spines[:].set_linewidth(2.0)
+                ax.spines[:].set_color(C_ORANGE); ax.spines[:].set_linewidth(2.0)
 
                 # Titel + Trennlinie
-                ax.text(0.5, 0.92, "ZENTRALSTATION", color=C_BLUE,
-                        fontsize=10, fontweight="bold", ha="center", va="center")
+                ax.text(0.5, 0.92, "TERMINE", color=C_ORANGE,
+                        fontsize=12, fontweight="bold", ha="center", va="center")
                 ax.axhline(0.84, 0.04, 0.96, color=BG_BORDER, linewidth=1.0)
 
                 if termine:
-                    # Termine anzeigen
-                    ax.text(0.07, 0.78, "Naechste Termine", color=C_MUTED,
-                            fontsize=7, fontweight="bold", ha="left", va="center")
-                    y_t = 0.68
-                    for termin in termine[:3]:   # max. 3 Eintraege
+                    y_t = 0.73
+                    for i, termin in enumerate(termine[:3]):   # max. 3 EintrÃ¤ge
                         farbe = termin["farbe"]
                         tage  = termin["tage_bis"]
                         suffix = "heute!" if tage == 0 else (
                             "morgen" if tage == 1 else f"in {tage} Tagen")
-                        ax.text(0.07, y_t, termin["name"],
-                                color=farbe, fontsize=8, ha="left", va="center",
-                                fontweight="bold" if tage <= 3 else "normal")
-                        ax.text(0.93, y_t, f"{termin['datum']}  ({suffix})",
-                                color=farbe, fontsize=7.5, ha="right", va="center")
-                        y_t -= 0.13
+                        
+                        # Zeile 1 (Name - Linksbuendig)
+                        ax.text(0.06, y_t, termin["name"],
+                                color=farbe, fontsize=10, ha="left", va="center",
+                                fontweight="bold")
+                        
+                        # Zeile 2 (Absatz - Countdown - Rechtsbuendig drunter)
+                        ax.text(0.94, y_t - 0.11, f"{termin['datum']}  ({suffix})",
+                                color=farbe, fontsize=9, ha="right", va="center")
+                        
+                        # Trennlinie zwischen den Eintraegen
+                        if i < min(len(termine), 3) - 1:
+                            ax.axhline(y_t - 0.19, 0.15, 0.85, color=BG_BORDER, linewidth=1.0, linestyle="--")
+                            
+                        y_t -= 0.27
                 else:
                     ax.text(0.5, 0.58, "Keine Termine eingetragen.",
-                            color=C_MUTED, fontsize=8, ha="center", va="center")
+                            color=C_MUTED, fontsize=9, ha="center", va="center")
 
-                ax.axhline(0.22, 0.04, 0.96, color=BG_BORDER, linewidth=1.0)
-                ax.text(0.5, 0.13, f"Host: {get_hostname()}.local  |  Zigbee 3.0  |  SQLite",
+                ax.axhline(0.18, 0.04, 0.96, color=BG_BORDER, linewidth=1.0)
+                ax.text(0.5, 0.10, f"Host: {get_hostname()}.local",
                         color=C_MUTED, fontsize=7, ha="center", va="center")
-                ax.text(0.5, 0.04, "SYSTEM BEREIT  [OK]", color=C_GREEN,
+                ax.text(0.5, 0.03, "SYSTEM BEREIT  [OK]", color=C_GREEN,
                         fontsize=8, fontweight="bold", ha="center", va="center")
                 continue
 
@@ -415,49 +422,32 @@ def erstelle_dashboard():
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 2: HISTORIE
-    #
-    #  Positionen im Content-Bereich (absolut):
-    #  ┌─────────────────────────────────────────────────────────────┐
-    #  │  [Jana][David][Eric][Dings][Balkon]    [24h][7T][30T]  0.900│  Buttons
-    #  │─────────────────────────────────────────────────────── 0.888│  Linie
-    #  │  Temperatur                              METADATA      0.862│  Titel
-    #  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    0.855│
-    #  │                                                              │
-    #  │                 TEMPERATUR-PLOT                              │
-    #  │                                                       0.455 │
-    #  │  ─ ─ ─ ─ ─ ─ gap ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   0.430 │
-    #  │  Luftfeuchte                                          0.423 │  Titel
-    #  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    0.418 │
-    #  │                                                              │
-    #  │                 LUFTFEUCHTE-PLOT                            │
-    #  │                                                       0.015 │
-    #  └─────────────────────────────────────────────────────────────┘
     # ══════════════════════════════════════════════════════════════════════
-    BTN_Y     = 0.900
-    BTN_H     = 0.047
-    SEP2_Y    = 0.888
-    TEMP_TOP  = 0.855   # Oberkante Temp-Plot (genug Abstand zum sep2 fuer set_title)
-    TEMP_BOT  = 0.455
-    HUM_TOP   = 0.430
-    HUM_BOT   = 0.015
-    PLT_LEFT  = CONT_X + 0.035   # Platz fuer Y-Achsen-Label
+    BTN_Y     = 0.875   # Buttons weiter runter gezogen, um sie gross zu machen
+    BTN_H     = 0.070   # Grössere Buttons fuer Touchscreen
+    SEP2_Y    = 0.860
+    TEMP_TOP  = 0.815   # Oberkante Temp-Plot (Diagramme flacher)
+    TEMP_BOT  = 0.440
+    HUM_TOP   = 0.410
+    HUM_BOT   = 0.035
+    PLT_LEFT  = CONT_X + 0.035
     PLT_RIGHT = CONT_X + CONT_W - 0.005
     PLT_W     = PLT_RIGHT - PLT_LEFT
 
     def build_historie():
         global historie_sensor, historie_stunden
 
-        # ── Sensor-Buttons ─────────────────────────────────────────────────
-        s_w = 0.110; s_g = 0.007
+        # ── Sensor-Buttons (Grosse Touch-Buttons) ──────────────────────────
+        s_w = 0.115; s_g = 0.007
         for i, slot in enumerate(SENSOR_SLOTS):
             ax_b = fig.add_axes([CONT_X + i*(s_w + s_g), BTN_Y, s_w, BTN_H])
             is_a = slot["id"] == historie_sensor
             btn  = Button(ax_b, slot["name"],
-                          color=(C_CYAN if is_a else "#1a1a2e"),
-                          hovercolor="#2a2a4e")
-            btn.label.set_fontsize(9)
+                          color=(C_CYAN if is_a else "#2a2a3e"),
+                          hovercolor="#3a3a5e")
+            btn.label.set_fontsize(11) # Grössere Schrift
             btn.label.set_fontweight("bold" if is_a else "normal")
-            btn.label.set_color(BG_DEEP if is_a else C_SUBTLE)
+            btn.label.set_color(BG_DEEP if is_a else C_TEXT)
             content_axes.append(ax_b); content_btns.append(btn)
 
             def make_sel(sid):
@@ -469,19 +459,19 @@ def erstelle_dashboard():
                 return h
             btn.on_clicked(make_sel(slot["id"]))
 
-        # ── Zeitraum-Buttons ───────────────────────────────────────────────
+        # ── Zeitraum-Buttons (Grosse Touch-Buttons) ────────────────────────
         z_opts = [("24 h", 24), ("7 Tage", 168), ("30 Tage", 720)]
-        z_w = 0.085; z_g = 0.007
+        z_w = 0.100; z_g = 0.007
         z_x0 = CONT_X + CONT_W - len(z_opts)*(z_w + z_g) + z_g
         for i, (label, std) in enumerate(z_opts):
             ax_z = fig.add_axes([z_x0 + i*(z_w + z_g), BTN_Y, z_w, BTN_H])
             is_a = std == historie_stunden
             btnz = Button(ax_z, label,
-                          color=(C_YELLOW if is_a else "#1e1a00"),
-                          hovercolor="#2e2a00")
-            btnz.label.set_fontsize(8)
+                          color=(C_YELLOW if is_a else "#2e2a00"),
+                          hovercolor="#3e3a00")
+            btnz.label.set_fontsize(10) # Grössere Schrift
             btnz.label.set_fontweight("bold" if is_a else "normal")
-            btnz.label.set_color(BG_DEEP if is_a else C_SUBTLE)
+            btnz.label.set_color(BG_DEEP if is_a else C_TEXT)
             content_axes.append(ax_z); content_btns.append(btnz)
 
             def make_z(s):
