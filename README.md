@@ -42,7 +42,7 @@ sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
 
 ### Arduino IDE Einstellungen
 - **Board:** `ESP32H2 Dev Module` *(Wichtig: RISC-V H2)*
-- **Zigbee Mode:** `Zigbee ED (End Device)` *(Menü Werkzeuge / Tools)*
+- **Zigbee Mode:** `Zigbee ED (End Device)` *(Für Akku)* **ODER** `Zigbee Router` *(Für Dauerstrom/Repeater)*
 - **Partition Scheme:** `Zigbee 4MB with spiffs` *(Wichtig für NVRAM)*
 - **USB CDC On Boot:** `Enabled` *(Für Serial Monitor Ausgabe)*
 - **Flash Size:** `4MB (32Mb)`
@@ -77,6 +77,7 @@ sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
   - Tab 3 (Steuerung): Systeminfo, Erinnerungen (`reminders.json`), Shutdown-Button
 
 ### Hardware To-Dos (Vor dem finalen Verbauen)
+- [ ] **Mesh-Netzwerk (Reichweite):** Einen ESP auf halber Strecke zum Balkon dauerhaft mit Strom versorgen. Den Deep-Sleep-Code entfernen und in der Arduino IDE als **Zigbee Router** flashen, damit er Signale weiterleitet.
 - [ ] **Power-LEDs entfernen:** Von allen ESP32-H2-Zero Boards die Power-LED abkratzen/auslöten, da sie den Akku entlädt (~2-5 mA permanent).
 - [ ] **Akkus wählen:** LiFePO4 Akku (3.2V) an den `3V3` Pin klemmen ODER Li-Ion (3.7V) an den `5V` Pin klemmen.
 - [ ] **DHT22 verkabeln:** Sensoren an den neuen Boards (Jana, Eric, Dings, Balkon) exakt wie das erste Board verlöten (GPIO 0).

@@ -36,8 +36,10 @@ Der Code ist bereits auf Batteriebetrieb optimiert (Deep Sleep). Für echte Lang
 * **Auswertung:** Ausbau des bisherigen Statistik-Skripts oder lokale PC-Skripte. Geplant ist eine Auswertung (z.B. als PDF oder als generierte Graphen), die Temperaturverläufe über Wochen und Monate darstellt.
 * **Datenbereinigung:** Bei monatelangem Sammeln im 10-Minuten-Takt entstehen große Datenmengen (ca. 50.000 Einträge pro Sensor pro Jahr). Ggf. muss später eine Logik integriert werden, die alte Daten verdichtet (z.B. nur noch Tages-Durchschnitte nach 3 Monaten).
 
-### 3.3. Weitere Sensoren
-* Fertigstellung der Hardware für "Jana", "Eric", "Dings" und "Balkon" und Anlernen in Zigbee2MQTT unter Verwendung des aktuellen Deep-Sleep-Codes.
+### 3.3. Weitere Sensoren & Mesh-Netzwerk (Routing)
+* **Endgeräte (Batterie):** Fertigstellung der Hardware für "Jana", "Eric", "Dings" und "Balkon". Diese laufen über Akku und behalten als *Zigbee End Device (ZED)* den Deep-Sleep-Code.
+* **Reichweiten-Erweiterung:** Zigbee-ESPs haben ab Werk eine begrenzte Reichweite. Um das Signal vom Balkon stabil zum Raspberry Pi (Coordinator) zu leiten, muss das Mesh-Netzwerk genutzt werden.
+* **Umsetzung:** Ein dazwischenliegender Knoten wird dauerhaft mit Strom versorgt. Aus seinem Code wird der Deep-Sleep-Befehl entfernt. In der Arduino IDE wird für ihn der Modus **Zigbee Router** geflasht. Das Weiterleiten der Daten von weiter entfernten Sensoren übernimmt das Zigbee-Netzwerk dann vollautomatisch.
 
 ### 3.4. Vision: Interaktives 10-Zoll Terminal
 Langfristig soll das System von einem 7-Zoll-Display auf ein **10-Zoll Touchdisplay** migriert werden, welches als zentrales, interaktives Terminal im Hausflur fungiert. Die Benutzeroberfläche mit **3 Reitern (Tabs)** ist bereits funktional implementiert:
