@@ -85,6 +85,7 @@ sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
 ### Ausblick (Was kommt als nächstes?)
 - **Jahresrückblick & Datenanalyse (Samba-Share):** Um später statistische Auswertungen über Monate und Jahre zu machen, wird ein Windows-Netzlaufwerk (Samba) auf dem Pi eingerichtet. Darüber lässt sich die Datenbank `sensor_history.db` einfach auf den Windows-PC kopieren und dort lokal z.B. mit Python (Pandas) auswerten.
 - **Begleitendes Web-Dashboard:** Parallel zur Desktop-App auf dem Touchdisplay soll ein Web-Server (z.B. mit Streamlit oder Flask) auf dem Pi laufen. Das ermöglicht den komfortablen Abruf des Dashboards (Live-Werte & Historie) über den Browser am PC oder Smartphone.
+- **Intelligente Warnhinweise (Fenster auf/zu):** Kacheln der Temperatur- und Feuchtigkeitsanzeigen (im LIVE-Tab) sollen sich dynamisch rot färben, wenn Messwerte kritische Schwellen verlassen oder wenn (z.B. im Sommer) die Balkon-Temperatur niedriger ist als die Innentemperatur, um so zu signalisieren, dass gelüftet werden sollte.
 - **Batterie-Überwachung:** Den internen ADC (Analog-Digital-Wandler) des ESP32 auslesen und den echten Batteriestand (anstelle von fixen 100%) übertragen.
 - **Vision: Interaktives 10-Zoll Hausflur-Terminal:**
   - Migration auf ein größeres 10-Zoll Touchdisplay als zentrales UI.

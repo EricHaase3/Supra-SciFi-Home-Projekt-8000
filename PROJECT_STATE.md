@@ -42,6 +42,7 @@ Der Code ist bereits auf Batteriebetrieb optimiert (Deep Sleep). Für echte Lang
 ### 3.4. Vision: Interaktives 10-Zoll Terminal
 Langfristig soll das System von einem 7-Zoll-Display auf ein **10-Zoll Touchdisplay** migriert werden, welches als zentrales, interaktives Terminal im Hausflur fungiert. Die Benutzeroberfläche mit **3 Reitern (Tabs)** ist bereits funktional implementiert:
 1. **Live-Daten:** Echtzeit-Ansicht der Temperatur- und Feuchtigkeitsdaten. Die Kachel der Zentralstation beinhaltet eine Terminübersicht (z.B. "Alle 6 Wochen Mülltonnen rausstellen"), die sich dynamisch in Richtung Rot färbt, wenn Termine näher rücken.
+    * *Geplantes Feature:* Intelligente visuelle Warnungen (Kacheln färben sich rot), wenn Temperatur/Feuchtigkeit Grenzwerte überschreiten oder wenn die Außentemperatur am Balkon im Sommer unter die Innentemperatur fällt (Lüftungsempfehlung).
 2. **Historie:** Diagramme und Graphen zur Visualisierung der Daten aus den letzten Tagen, Wochen und Monaten (basierend auf der SQLite-Datenbank).
 3. **Info & Steuerung:** Ein Info-Terminal für Alltags-Erinnerungen sowie Systemsteuerungs-Buttons (z.B. ein Button für das sichere Herunterfahren des Raspberry Pi, ohne die Konsole nutzen zu müssen).
 

@@ -204,6 +204,9 @@ def erstelle_dashboard():
     mng = plt.get_current_fig_manager()
     try:
         mng.window.attributes("-fullscreen", True)  # Primaermethode TkAgg
+        # Autostart-Fix: 1 und 3 Sekunden später nochmal triggern, falls der Window-Manager noch nicht bereit war
+        mng.window.after(1000, lambda: mng.window.attributes("-fullscreen", True))
+        mng.window.after(3000, lambda: mng.window.attributes("-fullscreen", True))
     except Exception:
         try:
             mng.full_screen_toggle()                # Fallback andere Backends
@@ -438,14 +441,14 @@ def erstelle_dashboard():
         global historie_sensor, historie_stunden
 
         # ── Sensor-Buttons (Grosse Touch-Buttons) ──────────────────────────
-        s_w = 0.115; s_g = 0.007
+        s_w = 0.095; s_g = 0.006  # Etwas schmaler, damit sie nicht mit Zeitraum-Buttons ueberlappen
         for i, slot in enumerate(SENSOR_SLOTS):
             ax_b = fig.add_axes([CONT_X + i*(s_w + s_g), BTN_Y, s_w, BTN_H])
             is_a = slot["id"] == historie_sensor
             btn  = Button(ax_b, slot["name"],
                           color=(C_CYAN if is_a else "#2a2a3e"),
                           hovercolor="#3a3a5e")
-            btn.label.set_fontsize(11) # Grössere Schrift
+            btn.label.set_fontsize(10) # Schrift angepasst an neue Breite
             btn.label.set_fontweight("bold" if is_a else "normal")
             btn.label.set_color(BG_DEEP if is_a else C_TEXT)
             content_axes.append(ax_b); content_btns.append(btn)
@@ -461,7 +464,7 @@ def erstelle_dashboard():
 
         # ── Zeitraum-Buttons (Grosse Touch-Buttons) ────────────────────────
         z_opts = [("24 h", 24), ("7 Tage", 168), ("30 Tage", 720)]
-        z_w = 0.100; z_g = 0.007
+        z_w = 0.080; z_g = 0.006  # Etwas schmaler
         z_x0 = CONT_X + CONT_W - len(z_opts)*(z_w + z_g) + z_g
         for i, (label, std) in enumerate(z_opts):
             ax_z = fig.add_axes([z_x0 + i*(z_w + z_g), BTN_Y, z_w, BTN_H])
@@ -469,7 +472,7 @@ def erstelle_dashboard():
             btnz = Button(ax_z, label,
                           color=(C_YELLOW if is_a else "#2e2a00"),
                           hovercolor="#3e3a00")
-            btnz.label.set_fontsize(10) # Grössere Schrift
+            btnz.label.set_fontsize(9) # Schrift angepasst an neue Breite
             btnz.label.set_fontweight("bold" if is_a else "normal")
             btnz.label.set_color(BG_DEEP if is_a else C_TEXT)
             content_axes.append(ax_z); content_btns.append(btnz)
