@@ -97,3 +97,25 @@ def get_last_values():
         }
     return result
 
+
+def get_history(sensor_name: str, stunden: int = 24):
+    """Lädt den Messverlauf eines Sensors für die letzten N Stunden aus der Datenbank.
+    Gibt (zeitstempel_liste, temp_liste, hum_liste) zurück."""
+    with db_lock:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT timestamp, temperature, humidity
+                FROM measurements
+                WHERE sensor_name = ?
+                  AND timestamp >= datetime('now', ?, 'localtime')
+                ORDER BY timestamp ASC
+            """, (sensor_name, f"-{stunden} hours"))
+            rows = cursor.fetchall()
+
+    timestamps, temps, hums = [], [], []
+    for ts, temp, hum in rows:
+        timestamps.append(ts)
+        temps.append(float(temp) if temp is not None else None)
+        hums.append(float(hum) if hum is not None else None)
+    return timestamps, temps, hums

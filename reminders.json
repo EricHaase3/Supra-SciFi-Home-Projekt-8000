@@ -1,0 +1,20 @@
+{
+  "erinnerungen": [
+    {
+      "wochentag": "Montag",
+      "text": "🗑️ Restmüll raus"
+    },
+    {
+      "wochentag": "Dienstag",
+      "text": "♻️ Gelbe Tonne raus"
+    },
+    {
+      "wochentag": "Mittwoch",
+      "text": "📦 Papiermüll raus"
+    }
+  ],
+  "notizen": [
+    "Lüften wenn Luftfeuchte > 65 %",
+    "Heizung prüfen wenn Temp < 18 °C"
+  ]
+}

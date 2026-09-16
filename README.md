@@ -2,16 +2,19 @@
 
 ## Raspberry Pi
 - **Login:** `sipi` | **PW:** `sipi`
-- **IP:** `192.168.2.170` (bzw. `sipi.local`)
-- **Zigbee2MQTT Web-Frontend:** [`http://192.168.2.170:8080`](http://192.168.2.170:8080) *(oder `http://sipi.local:8080`)*
+- **IP:** `192.168.2.160` (bzw. `sipi.local`)
+- **Zigbee2MQTT Web-Frontend:** [`http://192.168.2.160:8080`](http://192.168.2.160:8080) *(oder `http://sipi.local:8080`)*
 - **SQLite-Datenbank:** `data/sensor_history.db` *(speichert alle Messwerte automatisch)*
 
 ### In Windows CMD / SSH:
 ```bash
-ssh sipi@sipi.local                             # Verbinden mit dem RPi
+ssh sipi@192.168.2.160                             # Verbinden mit dem RPi (oder ssh sipi@sipi.local)
 cd ~/Supra-SciFi-Home-Projekt-8000              # Navigieren in Projektordner
 git pull                                        # Aktuellen Code pullen
 source venv/bin/activate                        # Venv aktivieren
+
+# Autostart auf dem RPi einrichten:
+bash setup_autostart.sh                         # Richtet Autostart für das Display ein
 
 # Live-Visualisierung + permanenter SQLite-Logger:
 DISPLAY=:0 python3 main.py
@@ -24,6 +27,14 @@ python3 stats.py
 - **Mosquitto MQTT:** `sudo systemctl status mosquitto`
 - **Zigbee2MQTT:** `sudo systemctl status zigbee2mqtt`
 - **Logs einsehen:** `journalctl -u zigbee2mqtt -f`
+
+### Shutdown-Button im Dashboard freischalten (einmalig!)
+Damit der Steuerungs-Tab den Pi ohne Passwort herunterfahren kann:
+```bash
+sudo visudo
+# Folgende Zeile am Ende der Datei hinzufügen:
+sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
+```
 
 ---
 
@@ -57,9 +68,13 @@ python3 stats.py
 ## Roadmap & Status
 - [x] Raspberry Pi Basis-Setup (Mosquitto + Zigbee2MQTT + Sonoff Dongle Plus)
 - [x] ESP32-H2-Zero Firmware (DHT22 + Zigbee End Device)
-- [x] Zigbee2MQTT Pairing erfolgreich
+- [x] Zigbee2MQTT Pairing erfolgreich (Jana, David, Eric)
 - [x] SQLite-Datenbankanbindung (`database.py` & `stats.py`)
 - [x] Deep Sleep für extremen Batteriebetrieb implementiert (Sleepy End Device)
+- [x] **3-Reiter-Dashboard** umgesetzt (`main.py`):
+  - Tab 1 (Live): 2×3 Kachelraster mit Echtzeitwerten
+  - Tab 2 (Historie): Liniendiagramm aus SQLite (24h / 7 Tage / 30 Tage)
+  - Tab 3 (Steuerung): Systeminfo, Erinnerungen (`reminders.json`), Shutdown-Button
 
 ### Hardware To-Dos (Vor dem finalen Verbauen)
 - [ ] **Power-LEDs entfernen:** Von allen ESP32-H2-Zero Boards die Power-LED abkratzen/auslöten, da sie den Akku entlädt (~2-5 mA permanent).
