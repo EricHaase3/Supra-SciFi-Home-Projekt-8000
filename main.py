@@ -3,18 +3,19 @@ import os
 import subprocess
 import threading
 import socket
-from datetime import datetime
-import paho.mqtt.client as mqtt
+from datetime import datetime, date, timedelta
 import matplotlib
+matplotlib.use("TkAgg")           # Explizit TkAgg fuer RPi – noetig fuer zuverlässiges Vollbild
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Button
+import paho.mqtt.client as mqtt
 from database import init_db, save_measurement, get_last_values, get_history
 
 # ─── Konfiguration ──────────────────────────────────────────────────────────
 MQTT_BROKER     = "localhost"
 MQTT_BASE_TOPIC = "zigbee2mqtt/#"
-UPDATE_INTERVAL = 30000  # 30 Sekunden – kein Ladesymbol mehr (keine Sekundenanzeige)
+UPDATE_INTERVAL = 30_000   # 30 Sekunden – kein Ladesymbol (keine Sekundenanzeige)
 
 SLOTS = [
     {"id": "Temp_Hum_Jana",   "name": "Jana"},
@@ -27,8 +28,8 @@ SLOTS = [
 SENSOR_SLOTS = [s for s in SLOTS if s["id"] != "SYSTEM_INFO"]
 
 sensor_daten = {
-    slot["id"]: {"temp": None, "hum": None, "last_seen": None, "online": False}
-    for slot in SENSOR_SLOTS
+    s["id"]: {"temp": None, "hum": None, "last_seen": None, "online": False}
+    for s in SENSOR_SLOTS
 }
 lock = threading.Lock()
 
@@ -36,44 +37,32 @@ aktiver_tab      = "live"
 historie_sensor  = SENSOR_SLOTS[0]["id"]
 historie_stunden = 24
 
-# ─── Layout-Konstanten ──────────────────────────────────────────────────────
+# ─── Layout-Konstanten (absolute Figure-Koordinaten 0.0–1.0) ────────────────
 #
 #  ┌─────┬──────────────────────────────────────────────────────────────────┐
-#  │     │  TITELZEILE                                        y=0.955-0.995 │
+#  │     │  TITELZEILE                                        y=0.955–0.995 │
 #  │  L  ├──────────────────────────────────────────────────────────────────┤
 #  │  I  │                                                                  │
-#  │  V  │                                                                  │
+#  │  V  │  CONTENT-BEREICH                                   y=0.005–0.950 │
 #  │  E  │                                                                  │
-#  ├─────┤  CONTENT-BEREICH                                   y=0.005-0.950 │
+#  ├─────┤                                                                  │
 #  │  H  │                                                                  │
-#  │  I  │                                                                  │
-#  │  S  │                                                                  │
 #  ├─────┤                                                                  │
 #  │  S  │                                                                  │
-#  │  T  │                                                                  │
-#  │  G  │                                                                  │
 #  └─────┴──────────────────────────────────────────────────────────────────┘
-#  0.00 0.14                                                            1.00
+#        0.146                                                           1.000
 
-TITLE_Y   = 0.955
-TITLE_H   = 0.040
+TITLE_Y  = 0.955
+TITLE_H  = 0.040
+TAB_X    = 0.000
+TAB_W    = 0.138
+CONT_Y   = 0.005
+CONT_H   = TITLE_Y - CONT_Y          # = 0.950
+SEP_X    = TAB_W + 0.003             # = 0.141
+CONT_X   = SEP_X + 0.005             # = 0.146
+CONT_W   = 1.000 - CONT_X - 0.005   # ≈ 0.849
 
-# Linke Tab-Leiste
-TAB_X     = 0.000   # Linke Kante der Tabs
-TAB_W     = 0.138   # Breite der Tab-Buttons
-TAB_BTM   = 0.005   # Unterkante der gesamten Tab-Leiste
-TAB_TOP   = TITLE_Y # Oberkante (bündig mit Titelzeile-Unterkante)
-
-# Trennlinie zwischen Tab-Leiste und Content
-SEP_X     = TAB_W + TAB_X + 0.003   # = 0.141
-
-# Content-Bereich
-CONT_X    = SEP_X + 0.005           # = 0.146
-CONT_W    = 1.000 - CONT_X - 0.005  # ≈ 0.849
-CONT_Y    = TAB_BTM                  # = 0.005
-CONT_H    = TITLE_Y - TAB_BTM       # = 0.950
-
-# Farben
+# Farben (Catppuccin Mocha)
 BG_DEEP   = "#0a0a12"
 BG_CARD   = "#181825"
 BG_BORDER = "#313244"
@@ -100,13 +89,45 @@ def lade_erinnerungen():
         with open(pfad, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
-        return {"erinnerungen": [], "notizen": []}
+        return {"erinnerungen": [], "notizen": [], "termine": []}
 
 def get_hostname():
     try:
         return socket.gethostname()
     except Exception:
         return "sipi"
+
+def termin_farbe(tage_bis: int) -> str:
+    """Gibt eine Farbe zurueck die umso roeter wird, je naeher der Termin ist."""
+    if tage_bis > 21:   return C_MUTED    # grau – weit weg
+    elif tage_bis > 14: return C_SUBTLE   # hell-grau
+    elif tage_bis > 7:  return C_YELLOW   # gelb
+    elif tage_bis > 3:  return C_ORANGE   # orange
+    elif tage_bis > 0:  return C_RED      # rot
+    else:               return "#ff2255"  # knallrot – ueberfaellig
+
+def berechne_termine(termine_liste: list) -> list:
+    """Berechnet naechste Faelligkeiten aus letzte_ausfuehrung + intervall_tage."""
+    ergebnis = []
+    heute = date.today()
+    for t in termine_liste:
+        try:
+            letzte = date.fromisoformat(t["letzte_ausfuehrung"])
+            intervall = int(t["intervall_tage"])
+            naechster = letzte + timedelta(days=intervall)
+            # Falls schon ueberfaellig: zähle weiter bis zum naechsten Vorkommen
+            while naechster < heute:
+                naechster += timedelta(days=intervall)
+            tage_bis = (naechster - heute).days
+            ergebnis.append({
+                "name":     t["name"],
+                "datum":    naechster.strftime("%d.%m."),
+                "tage_bis": tage_bis,
+                "farbe":    termin_farbe(tage_bis),
+            })
+        except Exception:
+            continue
+    return sorted(ergebnis, key=lambda x: x["tage_bis"])
 
 # ─── MQTT ───────────────────────────────────────────────────────────────────
 def on_connect(client, userdata, flags, rc, properties=None):
@@ -115,7 +136,7 @@ def on_connect(client, userdata, flags, rc, properties=None):
         print(f"[MQTT] Verbunden mit {MQTT_BROKER}")
         client.subscribe(MQTT_BASE_TOPIC)
     else:
-        print(f"[MQTT] Fehler Code: {rc}")
+        print(f"[MQTT] Fehler: {rc}")
 
 def on_message(client, userdata, msg):
     try:
@@ -125,7 +146,6 @@ def on_message(client, userdata, msg):
         sensor_name = parts[1]
         if sensor_name == "bridge":
             return
-
         payload = json.loads(msg.payload.decode("utf-8"))
 
         temp = None
@@ -155,7 +175,6 @@ def on_message(client, userdata, msg):
             sensor_daten[sensor_name]["online"] = True
 
         print(f"[{jetzt}] [{sensor_name}] {temp:.1f} C | {hum:.1f} %")
-
     except json.JSONDecodeError:
         pass
     except Exception as e:
@@ -180,16 +199,17 @@ def erstelle_dashboard():
 
     fig = plt.figure(figsize=(16, 9), facecolor=BG_DEEP)
 
+    # ── Vollbild (TkAgg, zuverlässig auf Raspberry Pi) ─────────────────────
     mng = plt.get_current_fig_manager()
     try:
-        mng.full_screen_toggle()
+        mng.window.attributes("-fullscreen", True)  # Primaermethode TkAgg
     except Exception:
         try:
-            mng.window.attributes("-fullscreen", True)
+            mng.full_screen_toggle()                # Fallback andere Backends
         except Exception:
             pass
 
-    # ── Titelzeile ─────────────────────────────────────────────────────────
+    # ── Titelzeile ──────────────────────────────────────────────────────────
     ax_title = fig.add_axes([0.0, TITLE_Y, 1.0, TITLE_H])
     ax_title.set_facecolor("#11111b")
     ax_title.set_xticks([]); ax_title.set_yticks([])
@@ -200,52 +220,46 @@ def erstelle_dashboard():
         color=C_TEXT, fontsize=12, fontweight="bold",
         ha="center", va="center", transform=ax_title.transAxes
     )
-
     # Trennlinie unter Titelzeile
-    ax_title_sep = fig.add_axes([0.0, TITLE_Y - 0.003, 1.0, 0.003])
-    ax_title_sep.set_facecolor(BG_BORDER)
-    ax_title_sep.set_xticks([]); ax_title_sep.set_yticks([])
-    for sp in ax_title_sep.spines.values():
+    ax_tsep = fig.add_axes([0.0, TITLE_Y - 0.003, 1.0, 0.003])
+    ax_tsep.set_facecolor(BG_BORDER)
+    ax_tsep.set_xticks([]); ax_tsep.set_yticks([])
+    for sp in ax_tsep.spines.values():
         sp.set_visible(False)
 
-    # ── Vertikale Tab-Leiste (links) ────────────────────────────────────────
-    tab_keys   = ["live", "historie", "steuerung"]
-    tab_labels = ["L\nI\nV\nE", "H\nI\nS\nT\nO\nR\nI\nE", "S\nT\nE\nU\nE\nR\nU\nN\nG"]
-    tab_labels_h = ["LIVE", "HISTORIE", "STEUERUNG"]  # horizontale Version fuer Button-Label
-
-    # Tab-Leisten-Hintergrund
+    # ── Tab-Leiste (links, vertikal) ────────────────────────────────────────
     ax_tabbar = fig.add_axes([TAB_X, CONT_Y, TAB_W, CONT_H])
     ax_tabbar.set_facecolor("#11111b")
     ax_tabbar.set_xticks([]); ax_tabbar.set_yticks([])
     for sp in ax_tabbar.spines.values():
         sp.set_visible(False)
 
-    # Trennlinie zwischen Tab-Leiste und Content
     ax_sep = fig.add_axes([SEP_X, CONT_Y, 0.003, CONT_H])
     ax_sep.set_facecolor(BG_BORDER)
     ax_sep.set_xticks([]); ax_sep.set_yticks([])
     for sp in ax_sep.spines.values():
         sp.set_visible(False)
 
-    # Tab-Buttons gleichmaessig ueber die Hoehe aufteilen
-    n_tabs   = len(tab_keys)
-    tab_h    = CONT_H / n_tabs          # Hoehe pro Tab ≈ 0.317
-    tab_gap  = 0.004                    # kleiner Abstand zwischen Tabs
-    tab_btns = []
+    tab_keys   = ["live", "historie", "steuerung"]
+    tab_labels = ["LIVE", "HISTORIE", "STEUERUNG"]
+    tab_btns   = []
+    n_tabs     = len(tab_keys)
+    tab_h_each = CONT_H / n_tabs
+    tab_gap    = 0.004
 
-    for i, (key, label) in enumerate(zip(tab_keys, tab_labels_h)):
-        y_pos = CONT_Y + (n_tabs - 1 - i) * tab_h + tab_gap / 2
-        h_pos = tab_h - tab_gap
-        bax = fig.add_axes([TAB_X + 0.004, y_pos, TAB_W - 0.008, h_pos])
-        btn = Button(bax, label, color=TAB_COLORS[key]["inactive"], hovercolor=BG_BORDER)
-        # Beschriftung vertikal / zentriert
+    for i, (key, label) in enumerate(zip(tab_keys, tab_labels)):
+        y_pos = CONT_Y + (n_tabs - 1 - i) * tab_h_each + tab_gap / 2
+        h_pos = tab_h_each - tab_gap
+        bax = fig.add_axes([TAB_X + 0.005, y_pos, TAB_W - 0.010, h_pos])
+        btn = Button(bax, label,
+                     color=TAB_COLORS[key]["inactive"], hovercolor=BG_BORDER)
         btn.label.set_fontsize(10)
         btn.label.set_fontweight("normal")
         btn.label.set_color(C_MUTED)
-        btn.label.set_rotation(90)   # Text hochkant
+        btn.label.set_rotation(90)
         tab_btns.append(btn)
 
-    # ── Content-Verwaltung ─────────────────────────────────────────────────
+    # ── Content-Verwaltung ──────────────────────────────────────────────────
     content_axes = []
     content_btns = []
 
@@ -276,7 +290,8 @@ def erstelle_dashboard():
         aktiver_tab = key
         update_tab_btns()
         clear_content()
-        {"live": build_live, "historie": build_historie, "steuerung": build_steuerung}[key]()
+        {"live": build_live, "historie": build_historie,
+         "steuerung": build_steuerung}[key]()
         fig.canvas.draw_idle()
 
     tab_btns[0].on_clicked(lambda e: switch_tab("live"))
@@ -284,13 +299,13 @@ def erstelle_dashboard():
     tab_btns[2].on_clicked(lambda e: switch_tab("steuerung"))
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 1: LIVE – 2x3 Kachelraster
+    # TAB 1: LIVE
     # ══════════════════════════════════════════════════════════════════════
     def build_live():
         cols, rows = 3, 2
-        gap  = 0.008
-        w    = (CONT_W - (cols - 1) * gap) / cols
-        h    = (CONT_H - (rows - 1) * gap) / rows
+        gap = 0.008
+        w = (CONT_W - (cols - 1) * gap) / cols
+        h = (CONT_H - (rows - 1) * gap) / rows
         for row in range(rows):
             for col in range(cols):
                 x = CONT_X + col * (w + gap)
@@ -308,8 +323,12 @@ def erstelle_dashboard():
         with lock:
             snap = {k: dict(v) for k, v in sensor_daten.items()}
 
+        # Termine fuer Zentralstation einmal laden
+        daten_erinnerungen = lade_erinnerungen()
+        termine = berechne_termine(daten_erinnerungen.get("termine", []))
+
         for idx, slot in enumerate(SLOTS):
-            ax  = content_axes[idx]
+            ax = content_axes[idx]
             ax.cla()
             ax.set_facecolor(BG_CARD)
             ax.set_xticks([]); ax.set_yticks([])
@@ -318,23 +337,47 @@ def erstelle_dashboard():
 
             sid, sname = slot["id"], slot["name"]
 
+            # ── Kachel 6: Zentralstation mit Terminen ──────────────────────
             if sid == "SYSTEM_INFO":
                 ax.spines[:].set_color(C_BLUE); ax.spines[:].set_linewidth(2.0)
-                ax.text(0.5, 0.86, "ZENTRALSTATION", color=C_BLUE,
+
+                # Titel + Trennlinie
+                ax.text(0.5, 0.92, "ZENTRALSTATION", color=C_BLUE,
                         fontsize=10, fontweight="bold", ha="center", va="center")
-                for yp, txt in zip([0.65, 0.48, 0.31],
-                                   [f"Host: {get_hostname()}.local",
-                                    "Zigbee 3.0 / MQTT",
-                                    "DB: SQLite (Dauerlogger)"]):
-                    ax.text(0.5, yp, txt, color=C_SUBTLE, fontsize=8, ha="center", va="center")
-                ax.text(0.5, 0.11, "SYSTEM BEREIT  [OK]", color=C_GREEN,
-                        fontsize=9, fontweight="bold", ha="center", va="center")
+                ax.axhline(0.84, 0.04, 0.96, color=BG_BORDER, linewidth=1.0)
+
+                if termine:
+                    # Termine anzeigen
+                    ax.text(0.07, 0.78, "Naechste Termine", color=C_MUTED,
+                            fontsize=7, fontweight="bold", ha="left", va="center")
+                    y_t = 0.68
+                    for termin in termine[:3]:   # max. 3 Eintraege
+                        farbe = termin["farbe"]
+                        tage  = termin["tage_bis"]
+                        suffix = "heute!" if tage == 0 else (
+                            "morgen" if tage == 1 else f"in {tage} Tagen")
+                        ax.text(0.07, y_t, termin["name"],
+                                color=farbe, fontsize=8, ha="left", va="center",
+                                fontweight="bold" if tage <= 3 else "normal")
+                        ax.text(0.93, y_t, f"{termin['datum']}  ({suffix})",
+                                color=farbe, fontsize=7.5, ha="right", va="center")
+                        y_t -= 0.13
+                else:
+                    ax.text(0.5, 0.58, "Keine Termine eingetragen.",
+                            color=C_MUTED, fontsize=8, ha="center", va="center")
+
+                ax.axhline(0.22, 0.04, 0.96, color=BG_BORDER, linewidth=1.0)
+                ax.text(0.5, 0.13, f"Host: {get_hostname()}.local  |  Zigbee 3.0  |  SQLite",
+                        color=C_MUTED, fontsize=7, ha="center", va="center")
+                ax.text(0.5, 0.04, "SYSTEM BEREIT  [OK]", color=C_GREEN,
+                        fontsize=8, fontweight="bold", ha="center", va="center")
                 continue
 
-            d    = snap.get(sid, {})
-            temp = d.get("temp")
-            hum  = d.get("hum")
-            last = d.get("last_seen")
+            # ── Sensor-Kacheln ─────────────────────────────────────────────
+            d      = snap.get(sid, {})
+            temp   = d.get("temp")
+            hum    = d.get("hum")
+            last   = d.get("last_seen")
             online = (temp is not None or hum is not None)
 
             if online:
@@ -350,10 +393,9 @@ def erstelle_dashboard():
             ax.axhline(0.80, 0.04, 0.96, color=BG_BORDER, linewidth=1.2)
 
             t_str   = f"{temp:.1f}" if temp is not None else "--.-"
-            t_color = (C_RED if temp is not None and temp >= 24 else
-                       (C_BLUE if temp is not None and temp <= 19 else C_ORANGE)
-                       if temp is not None else "#585b70")
-
+            t_color = (C_RED    if temp is not None and temp >= 24 else
+                       C_BLUE   if temp is not None and temp <= 19 else
+                       C_ORANGE if temp is not None else "#585b70")
             h_str   = f"{hum:.1f}" if (hum is not None and hum > 0) else "--.-"
             h_color = C_BLUE if (hum is not None and hum > 0) else "#585b70"
 
@@ -368,45 +410,47 @@ def erstelle_dashboard():
                     fontsize=8, ha="center", va="center")
 
             last_txt = f"Signal: {last}" if last else "Warte auf Funksignal ..."
-            ax.text(0.5, 0.09, last_txt, color=C_MUTED, fontsize=7, ha="center", va="center")
+            ax.text(0.5, 0.09, last_txt, color=C_MUTED,
+                    fontsize=7, ha="center", va="center")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 2: HISTORIE
     #
-    # Innerhalb des Content-Bereichs (CONT_X bis CONT_X+CONT_W, CONT_Y bis CONT_Y+CONT_H):
-    #
-    #  obere 8%  : Sensor-Auswahl-Buttons (links) + Zeitraum-Buttons (rechts)
-    #  Linie     : Trennlinie
-    #  mittlere 42%: Temperatur-Diagramm (flach)
-    #  kleiner Spalt
-    #  untere 42%  : Luftfeuchte-Diagramm (flach)
+    #  Positionen im Content-Bereich (absolut):
+    #  ┌─────────────────────────────────────────────────────────────┐
+    #  │  [Jana][David][Eric][Dings][Balkon]    [24h][7T][30T]  0.900│  Buttons
+    #  │─────────────────────────────────────────────────────── 0.888│  Linie
+    #  │  Temperatur                              METADATA      0.862│  Titel
+    #  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    0.855│
+    #  │                                                              │
+    #  │                 TEMPERATUR-PLOT                              │
+    #  │                                                       0.455 │
+    #  │  ─ ─ ─ ─ ─ ─ gap ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   0.430 │
+    #  │  Luftfeuchte                                          0.423 │  Titel
+    #  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    0.418 │
+    #  │                                                              │
+    #  │                 LUFTFEUCHTE-PLOT                            │
+    #  │                                                       0.015 │
+    #  └─────────────────────────────────────────────────────────────┘
     # ══════════════════════════════════════════════════════════════════════
+    BTN_Y     = 0.900
+    BTN_H     = 0.047
+    SEP2_Y    = 0.888
+    TEMP_TOP  = 0.855   # Oberkante Temp-Plot (genug Abstand zum sep2 fuer set_title)
+    TEMP_BOT  = 0.455
+    HUM_TOP   = 0.430
+    HUM_BOT   = 0.015
+    PLT_LEFT  = CONT_X + 0.035   # Platz fuer Y-Achsen-Label
+    PLT_RIGHT = CONT_X + CONT_W - 0.005
+    PLT_W     = PLT_RIGHT - PLT_LEFT
+
     def build_historie():
         global historie_sensor, historie_stunden
 
-        # Berechnung der absoluten Y-Positionen
-        btn_h    = 0.046
-        btn_y    = CONT_Y + CONT_H - btn_h - 0.005          # ≈ 0.899
-        sep_y    = btn_y - 0.008                              # ≈ 0.891
-        plot_top = sep_y - 0.005                              # ≈ 0.886
-        plot_mid = CONT_Y + (plot_top - CONT_Y) / 2 + 0.010  # Mitte + kleiner Versatz
-        gap      = 0.018
-        diag_h   = (plot_top - CONT_Y - gap) / 2             # Hoehe je Diagramm ≈ 0.43
-
-        temp_bot = plot_mid + gap / 2
-        temp_top = temp_bot + diag_h
-        hum_top  = plot_mid - gap / 2
-        hum_bot  = CONT_Y + 0.010
-
-        plt_left  = CONT_X + 0.030
-        plt_right = CONT_X + CONT_W - 0.008
-        plt_w     = plt_right - plt_left
-
-        # ── Sensor-Buttons ───────────────────────────────────────────────
-        s_w = 0.110
-        s_g = 0.007
+        # ── Sensor-Buttons ─────────────────────────────────────────────────
+        s_w = 0.110; s_g = 0.007
         for i, slot in enumerate(SENSOR_SLOTS):
-            ax_b = fig.add_axes([CONT_X + i*(s_w + s_g), btn_y, s_w, btn_h])
+            ax_b = fig.add_axes([CONT_X + i*(s_w + s_g), BTN_Y, s_w, BTN_H])
             is_a = slot["id"] == historie_sensor
             btn  = Button(ax_b, slot["name"],
                           color=(C_CYAN if is_a else "#1a1a2e"),
@@ -414,8 +458,7 @@ def erstelle_dashboard():
             btn.label.set_fontsize(9)
             btn.label.set_fontweight("bold" if is_a else "normal")
             btn.label.set_color(BG_DEEP if is_a else C_SUBTLE)
-            content_axes.append(ax_b)
-            content_btns.append(btn)
+            content_axes.append(ax_b); content_btns.append(btn)
 
             def make_sel(sid):
                 def h(e):
@@ -426,13 +469,12 @@ def erstelle_dashboard():
                 return h
             btn.on_clicked(make_sel(slot["id"]))
 
-        # ── Zeitraum-Buttons ─────────────────────────────────────────────
+        # ── Zeitraum-Buttons ───────────────────────────────────────────────
         z_opts = [("24 h", 24), ("7 Tage", 168), ("30 Tage", 720)]
-        z_w    = 0.085
-        z_g    = 0.007
-        z_x0   = CONT_X + CONT_W - len(z_opts)*(z_w + z_g) + z_g
+        z_w = 0.085; z_g = 0.007
+        z_x0 = CONT_X + CONT_W - len(z_opts)*(z_w + z_g) + z_g
         for i, (label, std) in enumerate(z_opts):
-            ax_z = fig.add_axes([z_x0 + i*(z_w + z_g), btn_y, z_w, btn_h])
+            ax_z = fig.add_axes([z_x0 + i*(z_w + z_g), BTN_Y, z_w, BTN_H])
             is_a = std == historie_stunden
             btnz = Button(ax_z, label,
                           color=(C_YELLOW if is_a else "#1e1a00"),
@@ -440,8 +482,7 @@ def erstelle_dashboard():
             btnz.label.set_fontsize(8)
             btnz.label.set_fontweight("bold" if is_a else "normal")
             btnz.label.set_color(BG_DEEP if is_a else C_SUBTLE)
-            content_axes.append(ax_z)
-            content_btns.append(btnz)
+            content_axes.append(ax_z); content_btns.append(btnz)
 
             def make_z(s):
                 def h(e):
@@ -452,29 +493,31 @@ def erstelle_dashboard():
                 return h
             btnz.on_clicked(make_z(std))
 
-        # ── Trennlinie ───────────────────────────────────────────────────
-        ax_line = fig.add_axes([CONT_X, sep_y, CONT_W, 0.002])
+        # ── Trennlinie ─────────────────────────────────────────────────────
+        ax_line = fig.add_axes([CONT_X, SEP2_Y, CONT_W, 0.002])
         ax_line.set_facecolor(BG_BORDER)
         ax_line.set_xticks([]); ax_line.set_yticks([])
         for sp in ax_line.spines.values():
             sp.set_visible(False)
         content_axes.append(ax_line)
 
-        # ── Diagramm-Axes ────────────────────────────────────────────────
-        ax_temp = fig.add_axes([plt_left, temp_bot, plt_w, temp_top - temp_bot])
-        ax_hum  = fig.add_axes([plt_left, hum_bot,  plt_w, hum_top  - hum_bot ])
+        # ── Diagramm-Axes ──────────────────────────────────────────────────
+        ax_temp = fig.add_axes([PLT_LEFT, TEMP_BOT, PLT_W, TEMP_TOP - TEMP_BOT])
+        ax_hum  = fig.add_axes([PLT_LEFT, HUM_BOT,  PLT_W, HUM_TOP  - HUM_BOT ])
 
         for ax in (ax_temp, ax_hum):
             ax.set_facecolor(BG_CARD)
             ax.tick_params(colors=C_SUBTLE, labelsize=7)
             for sp in ax.spines.values():
                 sp.set_color(BG_BORDER); sp.set_linewidth(0.8)
-            ax.grid(True, color=BG_BORDER, linewidth=0.5, linestyle="--", alpha=0.5)
+            ax.grid(True, color=BG_BORDER, linewidth=0.5,
+                    linestyle="--", alpha=0.5)
         content_axes.extend([ax_temp, ax_hum])
 
-        # ── Daten laden ──────────────────────────────────────────────────
+        # ── Daten laden ────────────────────────────────────────────────────
         ts_list, temp_list, hum_list = get_history(historie_sensor, historie_stunden)
-        s_label = next((s["name"] for s in SENSOR_SLOTS if s["id"] == historie_sensor), "?")
+        s_label = next((s["name"] for s in SENSOR_SLOTS
+                        if s["id"] == historie_sensor), "?")
         z_label = (f"{historie_stunden} h" if historie_stunden < 48
                    else f"{historie_stunden // 24} Tage")
         n = len(ts_list)
@@ -489,35 +532,26 @@ def erstelle_dashboard():
         else:
             x_labels = [ts_list[i][5:10] for i in x_ticks]
 
-        def info_text(ax, typ, farbe):
-            """Schreibt Sensor, Zeitraum und Messpunkte als separate Texte ins Diagramm."""
-            # Typ-Label (gross, links)
-            ax.text(0.0, 1.035, typ, color=farbe,
-                    fontsize=10, fontweight="bold",
-                    ha="left", va="bottom", transform=ax.transAxes)
-            # Sensor & Zeitraum (mittig)
-            ax.text(0.38, 1.035, f"Sensor:  {s_label}",
-                    color=C_TEXT, fontsize=8.5, ha="left", va="bottom",
-                    transform=ax.transAxes)
-            ax.text(0.58, 1.035, f"Zeitraum:  {z_label}",
-                    color=C_TEXT, fontsize=8.5, ha="left", va="bottom",
-                    transform=ax.transAxes)
-            # Messpunkte (rechts)
-            ax.text(1.0, 1.035, f"{n} Messpunkte",
-                    color=C_MUTED, fontsize=8, ha="right", va="bottom",
-                    transform=ax.transAxes)
+        def zeichne_info(ax, typ, farbe):
+            """Schreibt Typ (set_title) und Metainfo INNERHALB der Axes."""
+            ax.set_title(typ, color=farbe, fontsize=10,
+                         fontweight="bold", pad=4, loc="left")
+            # Info-Zeile oben rechts innerhalb des Diagramms
+            info = f"Sensor: {s_label}   |   Zeitraum: {z_label}   |   {n} Messpunkte"
+            ax.text(0.99, 0.97, info, color=C_MUTED, fontsize=7.5,
+                    ha="right", va="top", transform=ax.transAxes)
 
         if not ts_list:
             for ax, lbl, col in ((ax_temp, "Temperatur", C_RED),
                                   (ax_hum,  "Luftfeuchte", C_BLUE)):
-                info_text(ax, lbl, col)
+                zeichne_info(ax, lbl, col)
                 ax.text(0.5, 0.5, f"Keine Daten fuer Sensor \"{s_label}\".",
-                        color=C_MUTED, fontsize=9, ha="center", va="center",
-                        transform=ax.transAxes)
+                        color=C_MUTED, fontsize=9,
+                        ha="center", va="center", transform=ax.transAxes)
         else:
-            # Temperatur-Plot
-            info_text(ax_temp, "Temperatur", C_RED)
-            ax_temp.set_ylabel("Grad C", color=C_RED, fontsize=8, labelpad=4)
+            # Temperatur
+            zeichne_info(ax_temp, "Temperatur", C_RED)
+            ax_temp.set_ylabel("Grad C", color=C_RED, fontsize=8, labelpad=3)
             vt = [(i, v) for i, v in enumerate(temp_list) if v is not None]
             if vt:
                 xi, yi = zip(*vt)
@@ -531,9 +565,9 @@ def erstelle_dashboard():
             ax_temp.set_xticks(x_ticks)
             ax_temp.set_xticklabels(x_labels, rotation=20, ha="right", fontsize=6.5)
 
-            # Luftfeuchte-Plot
-            info_text(ax_hum, "Luftfeuchte", C_BLUE)
-            ax_hum.set_ylabel("% rH", color=C_BLUE, fontsize=8, labelpad=4)
+            # Luftfeuchte
+            zeichne_info(ax_hum, "Luftfeuchte", C_BLUE)
+            ax_hum.set_ylabel("% rH", color=C_BLUE, fontsize=8, labelpad=3)
             vh = [(i, v) for i, v in enumerate(hum_list) if v is not None]
             if vh:
                 xi, yi = zip(*vh)
@@ -553,9 +587,10 @@ def erstelle_dashboard():
     def build_steuerung():
         mid = CONT_X + CONT_W / 2
         gap = 0.010
-
-        ax_info = fig.add_axes([CONT_X,       CONT_Y, mid - CONT_X - gap, CONT_H])
-        ax_memo = fig.add_axes([mid + gap, CONT_Y, CONT_X + CONT_W - mid - gap, CONT_H])
+        ax_info = fig.add_axes([CONT_X,       CONT_Y,
+                                mid - CONT_X - gap, CONT_H])
+        ax_memo = fig.add_axes([mid + gap, CONT_Y,
+                                CONT_X + CONT_W - mid - gap, CONT_H])
         content_axes.extend([ax_info, ax_memo])
 
         for ax in (ax_info, ax_memo):
@@ -564,11 +599,10 @@ def erstelle_dashboard():
             for sp in ax.spines.values():
                 sp.set_color(BG_BORDER); sp.set_linewidth(1.5)
 
-        # ── Systeminfo ───────────────────────────────────────────────────
+        # Systeminfo
         ax_info.text(0.5, 0.93, "ZENTRALSTATION", color=C_BLUE,
                      fontsize=13, fontweight="bold", ha="center", va="center")
         ax_info.axhline(0.86, 0.05, 0.95, color=BG_BORDER, linewidth=1.2)
-
         for i, (key, val) in enumerate([
             ("Host",      f"{get_hostname()}.local  (Raspberry Pi)"),
             ("IP",        "192.168.2.160"),
@@ -586,19 +620,14 @@ def erstelle_dashboard():
         ax_info.text(0.5, 0.21, "SYSTEMSTEUERUNG", color=C_MUTED,
                      fontsize=8, ha="center", va="center")
 
-        # Buttons berechnen (in absoluten Figure-Coords, innerhalb der linken Hälfte)
-        lft_x = CONT_X + 0.015
-        btn_y_abs = CONT_Y + 0.045
-        btn_h_abs = 0.090
-
-        bx_sd = fig.add_axes([lft_x,        btn_y_abs, 0.165, btn_h_abs])
-        bx_rs = fig.add_axes([lft_x + 0.180, btn_y_abs, 0.165, btn_h_abs])
-
-        btn_sd = Button(bx_sd, "[X]  Herunterfahren", color="#3d1515", hovercolor=C_RED)
-        btn_rs = Button(bx_rs, "[>]  Neustart",       color="#15301a", hovercolor=C_GREEN)
+        bx_sd = fig.add_axes([CONT_X + 0.015, CONT_Y + 0.045, 0.165, 0.090])
+        bx_rs = fig.add_axes([CONT_X + 0.195, CONT_Y + 0.045, 0.165, 0.090])
+        btn_sd = Button(bx_sd, "[X]  Herunterfahren",
+                        color="#3d1515", hovercolor=C_RED)
+        btn_rs = Button(bx_rs, "[>]  Neustart",
+                        color="#15301a", hovercolor=C_GREEN)
         for btn, col in ((btn_sd, C_RED), (btn_rs, C_GREEN)):
-            btn.label.set_fontsize(9)
-            btn.label.set_color(col)
+            btn.label.set_fontsize(9); btn.label.set_color(col)
         content_axes.extend([bx_sd, bx_rs])
         content_btns.extend([btn_sd, btn_rs])
 
@@ -606,25 +635,22 @@ def erstelle_dashboard():
             print("[System] Fahre herunter..."),
             subprocess.Popen(["sudo", "shutdown", "-h", "now"])
         ))
-        btn_rs.on_clicked(lambda e: (
-            print("[System] Neustart Dashboard..."),
-            os.execv(__import__("sys").executable,
-                     [__import__("sys").executable] + __import__("sys").argv)
+        btn_rs.on_clicked(lambda e: os.execv(
+            __import__("sys").executable,
+            [__import__("sys").executable] + __import__("sys").argv
         ))
 
-        # ── Erinnerungen ─────────────────────────────────────────────────
+        # Erinnerungen & Notizen
         data = lade_erinnerungen()
         ax_memo.text(0.5, 0.93, "ERINNERUNGEN & NOTIZEN", color=C_ORANGE,
                      fontsize=13, fontweight="bold", ha="center", va="center")
         ax_memo.axhline(0.86, 0.05, 0.95, color=BG_BORDER, linewidth=1.2)
-
         yy = 0.79
         ax_memo.text(0.06, yy, "Wochentag", color=C_MUTED, fontsize=8,
                      fontweight="bold", ha="left", va="center")
         ax_memo.text(0.48, yy, "Aufgabe", color=C_MUTED, fontsize=8,
                      fontweight="bold", ha="left", va="center")
         yy -= 0.07
-
         for er in data.get("erinnerungen", []):
             if yy < 0.42:
                 break
@@ -633,37 +659,33 @@ def erstelle_dashboard():
             ax_memo.text(0.48, yy, er.get("text", ""),
                          color=C_SUBTLE, fontsize=9, ha="left", va="center")
             yy -= 0.09
-
-        notizen = data.get("notizen", [])
-        if notizen:
+        if data.get("notizen"):
             ax_memo.axhline(yy - 0.02, 0.05, 0.95, color=BG_BORDER, linewidth=1.0)
             yy -= 0.10
             ax_memo.text(0.5, yy, "Hinweise", color=C_MUTED, fontsize=8,
                          fontweight="bold", ha="center", va="center")
             yy -= 0.09
-            for notiz in notizen:
+            for notiz in data["notizen"]:
                 if yy < 0.04:
                     break
                 ax_memo.text(0.06, yy, f"> {notiz}", color=C_SUBTLE,
                              fontsize=9, ha="left", va="center")
                 yy -= 0.09
 
-    # ── Animations-Loop ────────────────────────────────────────────────────
+    # ── Animations-Loop ─────────────────────────────────────────────────────
     def animate(frame):
-        # Nur Stunde:Minute – loest das Ladesymbol-Problem
         jetzt = datetime.now().strftime("%d.%m.%Y   |   %H:%M")
         uhr_text.set_text(f"SUPRA SCI-FI HOME 8000   |   {jetzt}")
         if aktiver_tab == "live":
             update_live()
 
-    # Startzustand
     build_live()
     update_tab_btns()
 
     fig.canvas.mpl_connect("close_event", lambda e: __import__("sys").exit(0))
     ani = animation.FuncAnimation(
         fig, animate,
-        interval=UPDATE_INTERVAL,   # 30 Sekunden
+        interval=UPDATE_INTERVAL,
         cache_frame_data=False
     )
     plt.show()

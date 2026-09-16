@@ -72,7 +72,7 @@ sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
 - [x] SQLite-Datenbankanbindung (`database.py` & `stats.py`)
 - [x] Deep Sleep für extremen Batteriebetrieb implementiert (Sleepy End Device)
 - [x] **3-Reiter-Dashboard** umgesetzt (`main.py`):
-  - Tab 1 (Live): 2×3 Kachelraster mit Echtzeitwerten
+  - Tab 1 (Live): 2×3 Kachelraster mit Echtzeitwerten. Die "Zentralstation"-Kachel zeigt zudem dynamisch anstehende Termine an (z.B. Mülltonnen rausstellen), die sich rötlich färben, je näher der Termin rückt.
   - Tab 2 (Historie): Liniendiagramm aus SQLite (24h / 7 Tage / 30 Tage)
   - Tab 3 (Steuerung): Systeminfo, Erinnerungen (`reminders.json`), Shutdown-Button
 

@@ -16,5 +16,17 @@
   "notizen": [
     "Lueften wenn Luftfeuchte > 65 %",
     "Heizung pruefen wenn Temp < 18 C"
+  ],
+  "termine": [
+    {
+      "name": "Muelltonnen rausstellen",
+      "letzte_ausfuehrung": "2026-09-03",
+      "intervall_tage": 42
+    },
+    {
+      "name": "Heizungsfilter pruefen",
+      "letzte_ausfuehrung": "2026-08-01",
+      "intervall_tage": 90
+    }
   ]
 }
