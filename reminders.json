@@ -2,19 +2,19 @@
   "erinnerungen": [
     {
       "wochentag": "Montag",
-      "text": "🗑️ Restmüll raus"
+      "text": "Restmuell raus"
     },
     {
       "wochentag": "Dienstag",
-      "text": "♻️ Gelbe Tonne raus"
+      "text": "Gelbe Tonne raus"
     },
     {
       "wochentag": "Mittwoch",
-      "text": "📦 Papiermüll raus"
+      "text": "Papiermuell raus"
     }
   ],
   "notizen": [
-    "Lüften wenn Luftfeuchte > 65 %",
-    "Heizung prüfen wenn Temp < 18 °C"
+    "Lueften wenn Luftfeuchte > 65 %",
+    "Heizung pruefen wenn Temp < 18 C"
   ]
 }
