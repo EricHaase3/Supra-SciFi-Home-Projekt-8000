@@ -32,7 +32,8 @@ Der Code ist bereits auf Batteriebetrieb optimiert (Deep Sleep). Für echte Lang
 * **Optional:** Den `VCC`-Pin des DHT22 nicht dauerhaft an 3.3V hängen, sondern über einen GPIO-Pin nur für die Mess-Sekunde mit Strom versorgen.
 
 ### 3.2. "Jahresrückblick" & Datenanalyse
-* **`stats.py`:** Ausbau des bisherigen Statistik-Skripts. Geplant ist eine Auswertung (z.B. als PDF oder als generierte Graphen), die Temperaturverläufe über Wochen und Monate darstellt.
+* **Datenzugriff via Samba-Netzlaufwerk:** Für detaillierte statistische Analysen am Jahresende wird ein Samba-Share eingerichtet. Damit lässt sich die SQLite-Datenbank (`sensor_history.db`) nahtlos als Netzlaufwerk in Windows einbinden und zur lokalen Auswertung (z.B. über Python/Pandas) auf den PC kopieren.
+* **Auswertung:** Ausbau des bisherigen Statistik-Skripts oder lokale PC-Skripte. Geplant ist eine Auswertung (z.B. als PDF oder als generierte Graphen), die Temperaturverläufe über Wochen und Monate darstellt.
 * **Datenbereinigung:** Bei monatelangem Sammeln im 10-Minuten-Takt entstehen große Datenmengen (ca. 50.000 Einträge pro Sensor pro Jahr). Ggf. muss später eine Logik integriert werden, die alte Daten verdichtet (z.B. nur noch Tages-Durchschnitte nach 3 Monaten).
 
 ### 3.3. Weitere Sensoren
@@ -43,3 +44,6 @@ Langfristig soll das System von einem 7-Zoll-Display auf ein **10-Zoll Touchdisp
 1. **Live-Daten:** Echtzeit-Ansicht der Temperatur- und Feuchtigkeitsdaten. Die Kachel der Zentralstation beinhaltet eine Terminübersicht (z.B. "Alle 6 Wochen Mülltonnen rausstellen"), die sich dynamisch in Richtung Rot färbt, wenn Termine näher rücken.
 2. **Historie:** Diagramme und Graphen zur Visualisierung der Daten aus den letzten Tagen, Wochen und Monaten (basierend auf der SQLite-Datenbank).
 3. **Info & Steuerung:** Ein Info-Terminal für Alltags-Erinnerungen sowie Systemsteuerungs-Buttons (z.B. ein Button für das sichere Herunterfahren des Raspberry Pi, ohne die Konsole nutzen zu müssen).
+
+### 3.5. Vision: Begleitendes Web-Dashboard
+Neben dem Touch-Terminal im Hausflur ist mittelfristig ein begleitendes Web-Dashboard (z.B. mit Streamlit oder Flask) geplant. Dieser Dienst soll parallel auf dem Raspberry Pi laufen, auf dieselbe SQLite-Datenbank zugreifen und es ermöglichen, die Live-Daten und Historie bequem vom PC-Browser aus im lokalen Netzwerk abzurufen.

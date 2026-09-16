@@ -83,7 +83,8 @@ sipi ALL=(ALL) NOPASSWD: /sbin/shutdown
 - [ ] Alle weiteren Sensoren flashen und in Zigbee2MQTT anlernen.
 
 ### Ausblick (Was kommt als nächstes?)
-- **Jahresrückblick & Datenanalyse:** Ausbau von `stats.py` zu einem Script, das langfristige Auswertungen und Graphen aus der SQLite-Datenbank generiert (z.B. für Temperaturverläufe über Wochen/Monate).
+- **Jahresrückblick & Datenanalyse (Samba-Share):** Um später statistische Auswertungen über Monate und Jahre zu machen, wird ein Windows-Netzlaufwerk (Samba) auf dem Pi eingerichtet. Darüber lässt sich die Datenbank `sensor_history.db` einfach auf den Windows-PC kopieren und dort lokal z.B. mit Python (Pandas) auswerten.
+- **Begleitendes Web-Dashboard:** Parallel zur Desktop-App auf dem Touchdisplay soll ein Web-Server (z.B. mit Streamlit oder Flask) auf dem Pi laufen. Das ermöglicht den komfortablen Abruf des Dashboards (Live-Werte & Historie) über den Browser am PC oder Smartphone.
 - **Batterie-Überwachung:** Den internen ADC (Analog-Digital-Wandler) des ESP32 auslesen und den echten Batteriestand (anstelle von fixen 100%) übertragen.
 - **Vision: Interaktives 10-Zoll Hausflur-Terminal:**
   - Migration auf ein größeres 10-Zoll Touchdisplay als zentrales UI.
